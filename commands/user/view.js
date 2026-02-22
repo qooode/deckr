@@ -5,7 +5,7 @@ const { config } = require('../../utils/config');
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('view')
-        .setDescription('🔍 View a specific card')
+        .setDescription('View a specific card')
         .addStringOption(opt =>
             opt.setName('card').setDescription('Card to view').setRequired(true).setAutocomplete(true)),
 

@@ -5,7 +5,7 @@ const { config } = require('../../utils/config');
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('drop')
-        .setDescription('🎴 Drop a card in a channel (Admin only)')
+        .setDescription('Drop a card in a channel (Admin only)')
         .addChannelOption(opt =>
             opt.setName('channel').setDescription('Channel to drop the card in').setRequired(true))
         .addStringOption(opt =>

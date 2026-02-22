@@ -5,7 +5,7 @@ const { config } = require('../../utils/config');
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('trade')
-        .setDescription('🔄 Propose a card trade with another user')
+        .setDescription('Propose a card trade with another user')
         .addUserOption(opt =>
             opt.setName('user').setDescription('User to trade with').setRequired(true))
         .addStringOption(opt =>

@@ -5,7 +5,7 @@ const { config } = require('../../utils/config');
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('claim')
-        .setDescription('🎴 Claim a random card!'),
+        .setDescription('Claim a random card'),
 
     async execute(interaction) {
         const cards = dm.getCards();

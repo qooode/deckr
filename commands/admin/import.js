@@ -7,7 +7,7 @@ const http = require('http');
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('import')
-        .setDescription('📥 Import bot data from a JSON file (Admin only)')
+        .setDescription('Import bot data from a JSON file (Admin only)')
         .addAttachmentOption(opt =>
             opt.setName('file').setDescription('JSON file to import').setRequired(true))
         .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),

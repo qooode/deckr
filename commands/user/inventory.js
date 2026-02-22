@@ -7,7 +7,7 @@ const CARDS_PER_PAGE = 5;
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('inventory')
-        .setDescription('📦 View your card collection (or another user\'s)')
+        .setDescription('View your card collection (or another user\'s)')
         .addUserOption(opt =>
             opt.setName('user').setDescription('User to view (leave empty for yourself)').setRequired(false)),
 

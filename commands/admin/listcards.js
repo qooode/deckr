@@ -5,7 +5,7 @@ const { config } = require('../../utils/config');
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('listcards')
-        .setDescription('📇 List all cards in the database (Admin only)')
+        .setDescription('List all cards in the database (Admin only)')
         .addStringOption(opt =>
             opt.setName('rarity').setDescription('Filter by rarity').setRequired(false)
                 .addChoices(

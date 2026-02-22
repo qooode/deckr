@@ -4,7 +4,7 @@ const { config, setCooldown } = require('../../utils/config');
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('setcooldown')
-        .setDescription('⏱️ Set the claim cooldown in minutes (Admin only)')
+        .setDescription('Set the claim cooldown in minutes (Admin only)')
         .addIntegerOption(opt =>
             opt.setName('minutes').setDescription('Cooldown in minutes (1440 = 24 hours)').setRequired(true).setMinValue(1))
         .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),

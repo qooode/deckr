@@ -5,7 +5,7 @@ const { config } = require('../../utils/config');
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('deletecard')
-        .setDescription('🗑️ Delete a card (Admin only)')
+        .setDescription('Delete a card (Admin only)')
         .addStringOption(opt =>
             opt.setName('card').setDescription('Card to delete').setRequired(true).setAutocomplete(true))
         .addBooleanOption(opt =>

@@ -5,7 +5,7 @@ const { config } = require('../../utils/config');
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('export')
-        .setDescription('📤 Export all bot data as JSON (Admin only)')
+        .setDescription('Export all bot data as JSON (Admin only)')
         .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
 
     async execute(interaction) {

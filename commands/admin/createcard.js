@@ -5,7 +5,7 @@ const { config } = require('../../utils/config');
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('createcard')
-        .setDescription('🎨 Create a new card (Admin only)')
+        .setDescription('Create a new card (Admin only)')
         .addStringOption(opt =>
             opt.setName('name').setDescription('Card name').setRequired(true))
         .addStringOption(opt =>

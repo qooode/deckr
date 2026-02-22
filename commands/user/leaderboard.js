@@ -4,7 +4,7 @@ const dm = require('../../utils/dataManager');
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('leaderboard')
-        .setDescription('🏆 View the card collection leaderboard'),
+        .setDescription('View the card collection leaderboard'),
 
     async execute(interaction) {
         const leaderboard = dm.getLeaderboard();
