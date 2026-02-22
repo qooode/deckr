@@ -2,9 +2,9 @@
 set -e
 
 echo ""
-echo "╔═══════════════════════════════════╗"
-echo "║     🃏 LOOTDECK — Starting...     ║"
-echo "╚═══════════════════════════════════╝"
+echo "╔══════════════════════════════════╗"
+echo "║     🃏 DECKR — Starting...       ║"
+echo "╚══════════════════════════════════╝"
 echo ""
 
 # Initialize data files if they don't exist (first run or empty volume)
@@ -18,5 +18,5 @@ done
 echo "🔄 Deploying slash commands..."
 node deploy-commands.js
 
-echo "🚀 Starting Lootdeck bot..."
+echo "🚀 Starting Deckr bot..."
 exec node bot.js

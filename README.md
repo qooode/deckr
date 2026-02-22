@@ -1,4 +1,4 @@
-# 🃏 Lootdeck
+# 🃏 Deckr
 
 A Discord bot for dropping, claiming, collecting, and trading cards. Admin-controlled card creation with image-based cards, weighted rarity system, daily claims, first-come-first-served drops, trading, and leaderboards.
 
@@ -60,7 +60,7 @@ Higher weight = more likely to appear in random claims. Rarity score determines 
 ### 1. Create a Discord Bot
 
 1. Go to the [Discord Developer Portal](https://discord.com/developers/applications)
-2. Click **New Application** → name it **Lootdeck** (or whatever you like)
+2. Click **New Application** → name it **Deckr** (or whatever you like)
 3. Go to the **Bot** tab:
    - Click **Reset Token** → copy it (you'll need this as `DISCORD_TOKEN`)
    - Under **Privileged Gateway Intents**, you don't need any special intents
@@ -80,7 +80,7 @@ Higher weight = more likely to appear in random claims. Rarity score determines 
 
 ```bash
 # Clone/download the project
-cd lootdeck
+cd deckr
 
 # Install dependencies
 npm install
@@ -153,18 +153,18 @@ npm run dev
 
 ```bash
 # Build image
-docker build -t lootdeck .
+docker build -t deckr .
 
 # Run with environment variables
 docker run -d \
-  --name lootdeck \
+  --name deckr \
   --restart unless-stopped \
   -e DISCORD_TOKEN=your-bot-token \
   -e DISCORD_CLIENT_ID=your-client-id \
   -e DISCORD_GUILD_ID=your-guild-id \
   -e DISCORD_ADMIN_IDS=your-user-id \
-  -v lootdeck-data:/app/data \
-  lootdeck
+  -v deckr-data:/app/data \
+  deckr
 ```
 
 Or with **Docker Compose**:
@@ -203,7 +203,7 @@ docker compose down
    | `DISCORD_ADMIN_IDS` | Your user ID (comma-separated for multiple admins) |
    | `CLAIM_COOLDOWN_MINUTES` | `1440` (optional, default 24h) |
 
-5. Under **Storages**, Coolify will automatically create a persistent volume for `lootdeck-data`. This is where your cards, inventories, and all data are stored.
+5. Under **Storages**, Coolify will automatically create a persistent volume for `deckr-data`. This is where your cards, inventories, and all data are stored.
 6. Click **Deploy** 🚀
 
 #### Option 2: Dockerfile
@@ -214,7 +214,7 @@ docker compose down
 4. Coolify will detect the `Dockerfile` automatically
 5. Go to **Environment Variables** and add the same variables as above
 6. Go to **Storages** → Add a new volume mount:
-   - **Source**: Create a named volume (e.g., `lootdeck-data`)
+   - **Source**: Create a named volume (e.g., `deckr-data`)
    - **Destination**: `/app/data`
 7. Click **Deploy** 🚀
 
@@ -222,7 +222,7 @@ docker compose down
 
 - **Persistent Data**: The `/app/data` volume contains all your bot data (cards, inventories, cooldowns, trades). As long as you keep this volume, your data survives redeployments and container restarts.
 - **Backups**: Use the `/export` command before redeployments as an extra safety net. Or back up the volume directly from Coolify's storage settings.
-- **Logs**: Check the deployment logs in Coolify to verify the bot started successfully. You should see the Lootdeck banner and "🟢 Lootdeck is ready!"
+- **Logs**: Check the deployment logs in Coolify to verify the bot started successfully. You should see the Deckr banner and "🟢 Deckr is ready!"
 - **Updates**: Push code changes to your Git repo → click Redeploy in Coolify. Your data is safe in the volume.
 - **Multiple Admins**: Set `DISCORD_ADMIN_IDS=id1,id2,id3` to allow multiple admins.
 
@@ -230,7 +230,7 @@ docker compose down
 
 ## Migration / Hosting Transfer
 
-Moving Lootdeck to a different server or host:
+Moving Deckr to a different server or host:
 
 1. **Export data**: Run `/export` in Discord — the bot will DM you a JSON file with everything
 2. **Deploy** on the new host (Coolify, Docker, or bare metal)
@@ -244,7 +244,7 @@ Alternatively, if you have direct volume access, copy the `data/` directory betw
 ## Project Structure
 
 ```
-lootdeck/
+deckr/
 ├── bot.js                    # Main entry point
 ├── deploy-commands.js        # Slash command registration
 ├── docker-compose.yml        # Docker Compose config

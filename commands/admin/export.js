@@ -16,17 +16,17 @@ module.exports = {
         const allData = dm.exportAll();
         const jsonString = JSON.stringify(allData, null, 2);
         const buffer = Buffer.from(jsonString, 'utf-8');
-        const attachment = new AttachmentBuilder(buffer, { name: `lootdeck_export_${Date.now()}.json` });
+        const attachment = new AttachmentBuilder(buffer, { name: `deckr_export_${Date.now()}.json` });
 
         try {
             await interaction.user.send({
-                content: '📤 **Lootdeck Data Export**\nHere is your full data export. You can use `/import` to restore this later.',
+                content: '📤 **Deckr Data Export**\nHere is your full data export. You can use `/import` to restore this later.',
                 files: [attachment],
             });
             return interaction.reply({ content: '✅ Export sent to your DMs!', ephemeral: true });
         } catch {
             return interaction.reply({
-                content: '📤 **Lootdeck Data Export**\n(Could not DM you, sending here privately)',
+                content: '📤 **Deckr Data Export**\n(Could not DM you, sending here privately)',
                 files: [attachment],
                 ephemeral: true,
             });

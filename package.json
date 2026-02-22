@@ -1,5 +1,5 @@
 {
-  "name": "lootdeck",
+  "name": "deckr",
   "version": "1.0.0",
   "description": "Discord card drop & collection bot",
   "main": "bot.js",

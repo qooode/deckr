@@ -37,7 +37,7 @@ function loadCommands(dir) {
 
 console.log('');
 console.log('╔═══════════════════════════════════╗');
-console.log('║        🃏 LOOTDECK BOT            ║');
+console.log('║        🃏 DECKR BOT               ║');
 console.log('╚═══════════════════════════════════╝');
 console.log('');
 console.log('📦 Loading commands...');
@@ -53,7 +53,7 @@ client.once(Events.ClientReady, (c) => {
     console.log(`⏱️  Claim cooldown: ${config.claimCooldownMinutes} minutes`);
     console.log(`🏠 Guild: ${config.guildId}`);
     console.log('');
-    console.log('🟢 Lootdeck is ready!');
+    console.log('🟢 Deckr is ready!');
     console.log('');
 });
 

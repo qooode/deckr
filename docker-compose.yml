@@ -1,7 +1,7 @@
 services:
-  lootdeck:
+  deckr:
     build: .
-    container_name: lootdeck
+    container_name: deckr
     restart: unless-stopped
     environment:
       - DISCORD_TOKEN=${DISCORD_TOKEN}
@@ -10,8 +10,8 @@ services:
       - DISCORD_ADMIN_IDS=${DISCORD_ADMIN_IDS}
       - CLAIM_COOLDOWN_MINUTES=${CLAIM_COOLDOWN_MINUTES:-1440}
     volumes:
-      - lootdeck-data:/app/data
+      - deckr-data:/app/data
 
 volumes:
-  lootdeck-data:
+  deckr-data:
     driver: local
