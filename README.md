@@ -64,14 +64,14 @@ Higher weight = more likely to appear in random claims. Rarity score determines 
 3. Go to the **Bot** tab:
    - Click **Reset Token** → copy it (you'll need this as `DISCORD_TOKEN`)
    - Under **Privileged Gateway Intents**, you don't need any special intents
-4. Go to **OAuth2** tab:
-   - Copy the **Application ID** (this is your `DISCORD_CLIENT_ID`)
-5. Generate an invite link:
+4. Generate an invite link:
    - Go to **OAuth2 → URL Generator**
    - Check scopes: `bot`, `applications.commands`
    - Check bot permissions: `Send Messages`, `Embed Links`, `Attach Files`, `Use Slash Commands`
    - Copy the generated URL and open it to invite the bot to your server
-6. **Get your User ID**: In Discord, enable Developer Mode (*Settings → Advanced → Developer Mode*), then right-click yourself → **Copy User ID**
+5. **Get your User ID**: In Discord, enable Developer Mode (*Settings → Advanced → Developer Mode*), then right-click yourself → **Copy User ID**
+
+> 💡 The bot automatically extracts the Client ID from the token — you don't need to copy it separately.
 
 ---
 
@@ -95,9 +95,7 @@ npm run dev
 **Option A: Using `.env` file:**
 ```env
 DISCORD_TOKEN=your-bot-token
-DISCORD_CLIENT_ID=your-client-id
 DISCORD_ADMIN_IDS=your-user-id
-CLAIM_COOLDOWN_MINUTES=1440
 ```
 
 > ⚠️ For `.env` to work locally, install dotenv: `npm install dotenv` and add `require('dotenv').config()` at the top of `bot.js` and `deploy-commands.js`. Or just use `config.json` for local development.
@@ -106,7 +104,6 @@ CLAIM_COOLDOWN_MINUTES=1440
 ```json
 {
   "token": "your-bot-token",
-  "clientId": "your-client-id",
   "adminIds": ["your-user-id"],
   "claimCooldownMinutes": 1440,
   "rarityWeights": {
@@ -157,8 +154,6 @@ docker run -d \
   --name deckr \
   --restart unless-stopped \
   -e DISCORD_TOKEN=your-bot-token \
-  -e DISCORD_CLIENT_ID=your-client-id \
-  -e DISCORD_GUILD_ID=your-guild-id \
   -e DISCORD_ADMIN_IDS=your-user-id \
   -v deckr-data:/app/data \
   deckr
@@ -195,8 +190,8 @@ docker compose down
    | Variable | Required | Value |
    |---|---|---|
    | `DISCORD_TOKEN` | ✅ | Your bot token |
-   | `DISCORD_CLIENT_ID` | ✅ | Your application ID |
    | `DISCORD_ADMIN_IDS` | ✅ | Your user ID (comma-separated for multiple) |
+   | `DISCORD_CLIENT_ID` | ❌ | Auto-extracted from token |
    | `DISCORD_GUILD_ID` | ❌ | Your server ID (if set, commands appear instantly) |
    | `CLAIM_COOLDOWN_MINUTES` | ❌ | Default `1440` (24h) |
 

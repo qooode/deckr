@@ -10,10 +10,21 @@ try {
     // No config.json — that's fine, we'll use env vars
 }
 
+// Extract Client ID from the bot token (first segment is base64-encoded user ID)
+function extractClientId(token) {
+    if (!token) return '';
+    try {
+        return Buffer.from(token.split('.')[0], 'base64').toString();
+    } catch {
+        return '';
+    }
+}
+
 // Environment variables take priority over config.json
+const token = process.env.DISCORD_TOKEN || fileConfig.token || '';
 const config = {
-    token: process.env.DISCORD_TOKEN || fileConfig.token || '',
-    clientId: process.env.DISCORD_CLIENT_ID || fileConfig.clientId || '',
+    token,
+    clientId: process.env.DISCORD_CLIENT_ID || fileConfig.clientId || extractClientId(token),
     guildId: process.env.DISCORD_GUILD_ID || fileConfig.guildId || '',
     adminIds: process.env.DISCORD_ADMIN_IDS
         ? process.env.DISCORD_ADMIN_IDS.split(',').map(id => id.trim())
@@ -46,7 +57,7 @@ const config = {
 function validate() {
     const missing = [];
     if (!config.token) missing.push('DISCORD_TOKEN');
-    if (!config.clientId) missing.push('DISCORD_CLIENT_ID');
+    if (!config.clientId) missing.push('DISCORD_CLIENT_ID (could not extract from token)');
     if (config.adminIds.length === 0) missing.push('DISCORD_ADMIN_IDS');
     if (missing.length > 0) {
         console.error(`\n❌ Missing required configuration: ${missing.join(', ')}`);
