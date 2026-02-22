@@ -38,7 +38,7 @@ module.exports = {
 
         const lines = cards.map((c, i) => {
             const emoji = config.rarityEmojis[c.rarity] || '⚪';
-            return `${i + 1}. ${emoji} **${c.name}** — ${c.rarity} • ${c.series} • \`${c.id}\``;
+            return `${i + 1}. ${emoji} **${c.name}** — ${c.rarity}${c.series ? ` • ${c.series}` : ''} • \`${c.id}\``;
         });
 
         const chunks = [];

@@ -49,7 +49,7 @@ module.exports = {
             .setColor(parseInt(color.replace('#', ''), 16))
             .addFields(
                 { name: 'Rarity', value: `${emoji} ${card.rarity.charAt(0).toUpperCase() + card.rarity.slice(1)}`, inline: true },
-                { name: 'Series', value: card.series, inline: true },
+                ...(card.series ? [{ name: 'Series', value: card.series, inline: true }] : []),
                 { name: 'Total Owned', value: `${totalOwned} copies`, inline: true },
             )
             .setFooter({ text: `ID: ${card.id}` })
