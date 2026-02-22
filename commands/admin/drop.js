@@ -50,7 +50,7 @@ module.exports = {
 
         const embed = new EmbedBuilder()
             .setTitle(card.name)
-            .setDescription(`${emoji} ${card.rarity.charAt(0).toUpperCase() + card.rarity.slice(1)}\n\nA wild card appeared!`)
+            .setDescription(`${emoji} ${card.rarity.charAt(0).toUpperCase() + card.rarity.slice(1)}`)
             .setImage(card.imageUrl)
             .setColor(parseInt(color.replace('#', ''), 16))
             .setFooter({ text: 'First to claim gets it!' })
@@ -66,7 +66,7 @@ module.exports = {
 
         await interaction.reply({ content: `✅ Dropped **${card.name}** in ${channel}!`, ephemeral: true });
 
-        const msg = await channel.send({ embeds: [embed], components: [claimButton] });
+        const msg = await channel.send({ content: 'A wild card appeared!', embeds: [embed], components: [claimButton] });
 
         const collector = msg.createMessageComponentCollector({
             filter: (i) => i.customId.startsWith('drop_claim_'),
