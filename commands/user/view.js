@@ -44,7 +44,7 @@ module.exports = {
         const color = config.rarityColors[card.rarity] || '#9e9e9e';
 
         const embed = new EmbedBuilder()
-            .setTitle(`${emoji} ${card.name}`)
+            .setTitle(card.name)
             .setImage(card.imageUrl)
             .setColor(parseInt(color.replace('#', ''), 16))
             .addFields(

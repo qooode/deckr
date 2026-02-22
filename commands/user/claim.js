@@ -42,8 +42,8 @@ module.exports = {
         const color = config.rarityColors[card.rarity] || '#9e9e9e';
 
         const embed = new EmbedBuilder()
-            .setTitle(`${emoji} You got a card!`)
-            .setDescription(`**${card.name}**\n${emoji} ${card.rarity.charAt(0).toUpperCase() + card.rarity.slice(1)}`)
+            .setTitle(card.name)
+            .setDescription(`${emoji} ${card.rarity.charAt(0).toUpperCase() + card.rarity.slice(1)}\n\n🎉 You got a new card!`)
             .setImage(card.imageUrl)
             .setColor(parseInt(color.replace('#', ''), 16))
             .setFooter({ text: `Claimed by ${interaction.user.username}` })

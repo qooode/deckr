@@ -49,8 +49,8 @@ module.exports = {
         const color = config.rarityColors[card.rarity] || '#9e9e9e';
 
         const embed = new EmbedBuilder()
-            .setTitle(`${emoji} A wild card appeared!`)
-            .setDescription(`**${card.name}**\n${emoji} ${card.rarity.charAt(0).toUpperCase() + card.rarity.slice(1)}`)
+            .setTitle(card.name)
+            .setDescription(`${emoji} ${card.rarity.charAt(0).toUpperCase() + card.rarity.slice(1)}\n\nA wild card appeared!`)
             .setImage(card.imageUrl)
             .setColor(parseInt(color.replace('#', ''), 16))
             .setFooter({ text: 'First to claim gets it!' })
@@ -59,8 +59,9 @@ module.exports = {
         const claimButton = new ActionRowBuilder().addComponents(
             new ButtonBuilder()
                 .setCustomId(`drop_claim_${card.id}_${Date.now()}`)
-                .setLabel('🎴 Claim!')
-                .setStyle(ButtonStyle.Success),
+                .setLabel('Claim')
+                .setEmoji('🃏')
+                .setStyle(ButtonStyle.Secondary),
         );
 
         await interaction.reply({ content: `✅ Dropped **${card.name}** in ${channel}!`, ephemeral: true });
@@ -77,8 +78,8 @@ module.exports = {
             dm.addCardToUser(i.user.id, i.user.username, card.id);
 
             const claimedEmbed = EmbedBuilder.from(embed)
-                .setTitle(`${emoji} Card Claimed!`)
-                .setDescription(`**${card.name}** was claimed by **${i.user.username}**!\n${emoji} ${card.rarity.charAt(0).toUpperCase() + card.rarity.slice(1)}`)
+                .setTitle(card.name)
+                .setDescription(`${emoji} ${card.rarity.charAt(0).toUpperCase() + card.rarity.slice(1)}\n\n🎉 Claimed by **${i.user.username}**!`)
                 .setFooter({ text: `Claimed by ${i.user.username}` });
 
             const disabledButton = new ActionRowBuilder().addComponents(
