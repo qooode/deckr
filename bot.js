@@ -51,7 +51,7 @@ client.once(Events.ClientReady, (c) => {
     console.log(`📇 ${client.commands.size} commands loaded`);
     console.log(`👑 Admin IDs: ${config.adminIds.join(', ')}`);
     console.log(`⏱️  Claim cooldown: ${config.claimCooldownMinutes} minutes`);
-    console.log(`🏠 Guild: ${config.guildId}`);
+    console.log(`🏠 Commands: ${config.guildId ? `Guild ${config.guildId}` : 'Global'}`);
     console.log('');
     console.log('🟢 Deckr is ready!');
     console.log('');

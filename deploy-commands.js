@@ -29,15 +29,21 @@ const rest = new REST({ version: '10' }).setToken(config.token);
 
 (async () => {
     try {
-        console.log(`🔄 Registering ${commands.length} slash commands to guild ${config.guildId}...`);
-
-        const data = await rest.put(
-            Routes.applicationGuildCommands(config.clientId, config.guildId),
-            { body: commands },
-        );
-
-        console.log(`✅ Successfully registered ${data.length} commands!`);
-        console.log('Commands:', data.map(c => `/${c.name}`).join(', '));
+        if (config.guildId) {
+            console.log(`🔄 Registering ${commands.length} slash commands to guild ${config.guildId}...`);
+            const data = await rest.put(
+                Routes.applicationGuildCommands(config.clientId, config.guildId),
+                { body: commands },
+            );
+            console.log(`✅ Successfully registered ${data.length} guild commands!`);
+        } else {
+            console.log(`🔄 Registering ${commands.length} slash commands globally...`);
+            const data = await rest.put(
+                Routes.applicationCommands(config.clientId),
+                { body: commands },
+            );
+            console.log(`✅ Successfully registered ${data.length} global commands! (may take up to 1h to appear)`);
+        }
     } catch (error) {
         console.error('❌ Error registering commands:', error);
     }

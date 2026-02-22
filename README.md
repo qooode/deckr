@@ -71,8 +71,7 @@ Higher weight = more likely to appear in random claims. Rarity score determines 
    - Check scopes: `bot`, `applications.commands`
    - Check bot permissions: `Send Messages`, `Embed Links`, `Attach Files`, `Use Slash Commands`
    - Copy the generated URL and open it to invite the bot to your server
-6. **Get your Guild ID**: In Discord, enable Developer Mode (Settings → Advanced → Developer Mode), then right-click your server → **Copy Server ID**
-7. **Get your User ID**: Right-click yourself → **Copy User ID**
+6. **Get your User ID**: In Discord, enable Developer Mode (*Settings → Advanced → Developer Mode*), then right-click yourself → **Copy User ID**
 
 ---
 
@@ -97,7 +96,6 @@ npm run dev
 ```env
 DISCORD_TOKEN=your-bot-token
 DISCORD_CLIENT_ID=your-client-id
-DISCORD_GUILD_ID=your-guild-id
 DISCORD_ADMIN_IDS=your-user-id
 CLAIM_COOLDOWN_MINUTES=1440
 ```
@@ -109,7 +107,6 @@ CLAIM_COOLDOWN_MINUTES=1440
 {
   "token": "your-bot-token",
   "clientId": "your-client-id",
-  "guildId": "your-guild-id",
   "adminIds": ["your-user-id"],
   "claimCooldownMinutes": 1440,
   "rarityWeights": {
@@ -195,13 +192,13 @@ docker compose down
 3. Coolify will detect the `docker-compose.yml` automatically
 4. Go to the **Environment Variables** tab and add:
 
-   | Variable | Value |
-   |---|---|
-   | `DISCORD_TOKEN` | Your bot token |
-   | `DISCORD_CLIENT_ID` | Your application ID |
-   | `DISCORD_GUILD_ID` | Your server ID |
-   | `DISCORD_ADMIN_IDS` | Your user ID (comma-separated for multiple admins) |
-   | `CLAIM_COOLDOWN_MINUTES` | `1440` (optional, default 24h) |
+   | Variable | Required | Value |
+   |---|---|---|
+   | `DISCORD_TOKEN` | ✅ | Your bot token |
+   | `DISCORD_CLIENT_ID` | ✅ | Your application ID |
+   | `DISCORD_ADMIN_IDS` | ✅ | Your user ID (comma-separated for multiple) |
+   | `DISCORD_GUILD_ID` | ❌ | Your server ID (if set, commands appear instantly) |
+   | `CLAIM_COOLDOWN_MINUTES` | ❌ | Default `1440` (24h) |
 
 5. Under **Storages**, Coolify will automatically create a persistent volume for `deckr-data`. This is where your cards, inventories, and all data are stored.
 6. Click **Deploy** 🚀

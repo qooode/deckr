@@ -47,7 +47,6 @@ function validate() {
     const missing = [];
     if (!config.token) missing.push('DISCORD_TOKEN');
     if (!config.clientId) missing.push('DISCORD_CLIENT_ID');
-    if (!config.guildId) missing.push('DISCORD_GUILD_ID');
     if (config.adminIds.length === 0) missing.push('DISCORD_ADMIN_IDS');
     if (missing.length > 0) {
         console.error(`\n❌ Missing required configuration: ${missing.join(', ')}`);
