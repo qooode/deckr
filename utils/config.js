@@ -30,6 +30,7 @@ const config = {
         ? process.env.DISCORD_ADMIN_IDS.split(',').map(id => id.trim())
         : fileConfig.adminIds || [],
     claimCooldownMinutes: parseInt(process.env.CLAIM_COOLDOWN_MINUTES || fileConfig.claimCooldownMinutes || 1440, 10),
+    claimImageUrl: process.env.CLAIM_IMAGE_URL || fileConfig.claimImageUrl || '',
     rarityWeights: fileConfig.rarityWeights || {
         common: 50,
         uncommon: 30,

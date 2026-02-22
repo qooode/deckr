@@ -45,6 +45,10 @@ module.exports = {
             .setColor(0x2b2d31)
             .setFooter({ text: `${interaction.user.username}` });
 
+        if (config.claimImageUrl) {
+            embed.setImage(config.claimImageUrl);
+        }
+
         const buttons = new ActionRowBuilder().addComponents(
             new ButtonBuilder()
                 .setCustomId(`${pickId}_0`)
