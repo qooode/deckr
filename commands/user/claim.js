@@ -43,7 +43,7 @@ module.exports = {
 
         const embed = new EmbedBuilder()
             .setTitle(`${emoji} You got a card!`)
-            .setDescription(`**${card.name}**\n${emoji} ${card.rarity.charAt(0).toUpperCase() + card.rarity.slice(1)}${card.series ? ` • ${card.series}` : ''}`)
+            .setDescription(`**${card.name}**\n${emoji} ${card.rarity.charAt(0).toUpperCase() + card.rarity.slice(1)}`)
             .setImage(card.imageUrl)
             .setColor(parseInt(color.replace('#', ''), 16))
             .setFooter({ text: `Claimed by ${interaction.user.username}` })

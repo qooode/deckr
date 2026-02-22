@@ -18,8 +18,7 @@ module.exports = {
                     { name: '🟣 Epic', value: 'epic' },
                     { name: '🟡 Legendary', value: 'legendary' },
                 ))
-        .addStringOption(opt =>
-            opt.setName('series').setDescription('Card series/collection name (optional)').setRequired(false))
+
         .addStringOption(opt =>
             opt.setName('image_url').setDescription('Direct URL to the card image').setRequired(true))
         .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
@@ -31,7 +30,7 @@ module.exports = {
 
         const name = interaction.options.getString('name');
         const rarity = interaction.options.getString('rarity');
-        const series = interaction.options.getString('series') || '';
+
         const imageUrl = interaction.options.getString('image_url');
 
         if (dm.findCardByName(name)) {
@@ -42,7 +41,7 @@ module.exports = {
             id: dm.generateCardId(),
             name,
             rarity,
-            series,
+
             imageUrl,
             createdAt: new Date().toISOString(),
         };
@@ -59,7 +58,7 @@ module.exports = {
             .addFields(
                 { name: 'Name', value: name, inline: true },
                 { name: 'Rarity', value: `${emoji} ${rarity.charAt(0).toUpperCase() + rarity.slice(1)}`, inline: true },
-                ...(series ? [{ name: 'Series', value: series, inline: true }] : []),
+
                 { name: 'ID', value: `\`${card.id}\``, inline: true },
             )
             .setFooter({ text: `Created by ${interaction.user.username}` })

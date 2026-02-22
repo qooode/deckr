@@ -32,7 +32,7 @@ module.exports = {
                 if (!card) return null;
                 const emoji = config.rarityEmojis[card.rarity] || '⚪';
                 const qtyStr = entry.quantity > 1 ? ` x${entry.quantity}` : '';
-                return `${emoji} **${card.name}**${qtyStr}${card.series ? ` • ${card.series}` : ''}`;
+                return `${emoji} **${card.name}**${qtyStr}`;
             })
             .filter(Boolean);
 
