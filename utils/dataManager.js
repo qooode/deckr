@@ -247,6 +247,48 @@ function getRandomCard() {
   return weighted[weighted.length - 1].card;
 }
 
+function getRandomCards(count) {
+  const cards = getCards();
+  if (cards.length === 0) return [];
+  const { config } = require('./config');
+  const weights = config.rarityWeights;
+
+  const results = [];
+  const usedIds = new Set();
+
+  for (let i = 0; i < count; i++) {
+    // Prefer unique cards, but allow duplicates if pool is too small
+    let pool = cards.filter(c => !usedIds.has(c.id));
+    if (pool.length === 0) pool = cards;
+
+    const weighted = pool.map(card => ({
+      card,
+      weight: weights[card.rarity] ?? 1,
+    }));
+
+    const totalWeight = weighted.reduce((sum, w) => sum + w.weight, 0);
+    let roll = Math.random() * totalWeight;
+
+    for (const { card, weight } of weighted) {
+      roll -= weight;
+      if (roll <= 0) {
+        results.push(card);
+        usedIds.add(card.id);
+        break;
+      }
+    }
+
+    // Fallback
+    if (results.length <= i) {
+      const fallback = weighted[weighted.length - 1].card;
+      results.push(fallback);
+      usedIds.add(fallback.id);
+    }
+  }
+
+  return results;
+}
+
 // ---------- Export / Import ----------
 
 function exportAll() {
@@ -283,7 +325,7 @@ module.exports = {
   getInventory, saveInventory, getUserInventory, addCardToUser, removeCardFromUser, userHasCard,
   canClaim, recordClaim,
   getTrades, addTrade, findTradeById, removeTrade, generateTradeId,
-  getLeaderboard, getRandomCard,
+  getLeaderboard, getRandomCard, getRandomCards,
   exportAll, importAll,
   PATHS,
 };
