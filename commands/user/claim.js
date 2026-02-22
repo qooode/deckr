@@ -38,15 +38,12 @@ module.exports = {
         const pickId = `pick_${interaction.user.id}_${Date.now()}`;
 
         const embed = new EmbedBuilder()
-            .setTitle('Choose a card')
-            .setDescription('Three cards have been drawn face-down.\nPick one to keep — the rest will be revealed.')
-            .addFields(
-                { name: 'Left', value: '🂠', inline: true },
-                { name: 'Middle', value: '🂠', inline: true },
-                { name: 'Right', value: '🂠', inline: true },
+            .setDescription(
+                `### Three cards are face down.\n` +
+                `Pick one to keep. The rest will be revealed.\n`
             )
             .setColor(0x2b2d31)
-            .setFooter({ text: `${interaction.user.username} · 30s to pick` });
+            .setFooter({ text: `${interaction.user.username}` });
 
         const buttons = new ActionRowBuilder().addComponents(
             new ButtonBuilder()
@@ -85,28 +82,24 @@ module.exports = {
             const pickedColor = config.rarityColors[pickedCard.rarity] || '#9e9e9e';
             const positions = ['Left', 'Middle', 'Right'];
 
-            // Build reveal fields — picked card is bold, others are dimmed
-            const fields = threeCards.map((card, idx) => {
+            const lines = threeCards.map((card, idx) => {
                 const emoji = config.rarityEmojis[card.rarity] || '⚪';
                 const rarity = card.rarity.charAt(0).toUpperCase() + card.rarity.slice(1);
-                const isPick = idx === pickedIndex;
 
-                return {
-                    name: isPick ? `${positions[idx]} ✦` : positions[idx],
-                    value: isPick
-                        ? `${emoji} **${card.name}**\n${rarity}`
-                        : `-# ${emoji} ${card.name}\n-# ${rarity}`,
-                    inline: true,
-                };
+                if (idx === pickedIndex) {
+                    return `**${positions[idx]}** · ${emoji} **${card.name}** · ${rarity}  ◂`;
+                }
+                return `${positions[idx]} · ${emoji} ${card.name} · ${rarity}`;
             });
 
             const resultEmbed = new EmbedBuilder()
-                .setTitle(pickedCard.name)
-                .setDescription(`Claimed by ${interaction.user.username}`)
-                .addFields(fields)
+                .setDescription(
+                    `### ${pickedCard.name}\n` +
+                    `Claimed by ${interaction.user.username}\n\n` +
+                    lines.join('\n')
+                )
                 .setImage(pickedCard.imageUrl)
                 .setColor(parseInt(pickedColor.replace('#', ''), 16))
-                .setFooter({ text: pickedCard.rarity.charAt(0).toUpperCase() + pickedCard.rarity.slice(1) })
                 .setTimestamp();
 
             const disabledButtons = new ActionRowBuilder().addComponents(
@@ -123,7 +116,7 @@ module.exports = {
         collector.on('end', async (collected) => {
             if (collected.size === 0) {
                 const expiredEmbed = new EmbedBuilder()
-                    .setDescription('Cards expired — use `/claim` again.')
+                    .setDescription('Cards expired. Use `/claim` again.')
                     .setColor(0x2b2d31);
 
                 const disabledButtons = new ActionRowBuilder().addComponents(
