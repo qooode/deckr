@@ -18,7 +18,7 @@ const CLASH_LINES = [
     '🔄 Stalemate!', '🤝 Tied! No damage.',
 ];
 const KO_LINES = [
-    '� K.O.!', '☠️ DESTROYED!', '🏆 IT\'S OVER!', '⚡ FINISHED!',
+    '💀 K.O.!', '☠️ DESTROYED!', '⚡ FINISHED!', '💥 OBLITERATED!',
 ];
 
 function pick(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
@@ -35,7 +35,7 @@ function fightEmbed(round, c1, c2, n1, n2, hp1, hp2, statusText) {
             `${e1} **${c1.name}**\n${hpBar(hp1)} — ${n1}\n\n` +
             `**VS**\n\n` +
             `${e2} **${c2.name}**\n${hpBar(hp2)} — ${n2}\n\n` +
-            `───────────────\n${statusText}`
+            `${statusText}`
         );
     return embed;
 }
@@ -390,18 +390,16 @@ module.exports = {
                         cleanup();
 
                         const e2 = config.rarityEmojis[card2.rarity] || '⚪';
-                        const winnerCard = hp1 > 0 ? card1 : card2;
-                        const winnerE = config.rarityEmojis[winnerCard.rarity] || '⚪';
-                        const stolenRarity = stolen.rarity.charAt(0).toUpperCase() + stolen.rarity.slice(1);
 
                         const finalEmbed = new EmbedBuilder()
                             .setTitle(`🏆 ${winnerName} wins!`)
                             .setColor(0xfee75c)
                             .setDescription(
-                                `${pick(KO_LINES)}\n\n` +
-                                `${winnerE} **${winnerCard.name}** defeated ${stolenE} **${stolen.name}** in ${round} rounds\n\n` +
-                                `───────────────\n\n` +
-                                `**${winnerName}** took ${stolenE} **${stolen.name}** (${stolenRarity}) from **${loserName}**`
+                                `${pick(KO_LINES)} · ${round} rounds\n\n` +
+                                `${e1} **${card1.name}**\n${hpBar(hp1)} — ${name1}\n\n` +
+                                `**VS**\n\n` +
+                                `${e2} **${card2.name}**\n${hpBar(hp2)} — ${name2}\n\n` +
+                                `🃏 **${stolen.name}** → **${winnerName}**`
                             )
                             .setTimestamp();
 
