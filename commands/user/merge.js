@@ -14,15 +14,15 @@ function cap(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
 
 module.exports = {
     data: new SlashCommandBuilder()
-        .setName('combine')
-        .setDescription('Combine cards to forge a higher rarity card'),
+        .setName('merge')
+        .setDescription('Merge cards to forge a higher rarity card'),
 
     async execute(interaction) {
         const userId = interaction.user.id;
         const username = interaction.user.username;
         const allCards = dm.getCards();
         const userInv = dm.getUserInventory(userId);
-        const combineId = `combine_${userId}_${Date.now()}`;
+        const mergeId = `merge_${userId}_${Date.now()}`;
 
         if (userInv.length === 0) {
             return interaction.reply({
@@ -40,10 +40,10 @@ module.exports = {
             rarityCounts[card.rarity] = (rarityCounts[card.rarity] || 0) + entry.quantity;
         }
 
-        const canCombine = Object.entries(rarityCounts).filter(([, count]) => count >= 3);
-        if (canCombine.length === 0) {
+        const canMerge = Object.entries(rarityCounts).filter(([, count]) => count >= 3);
+        if (canMerge.length === 0) {
             return interaction.reply({
-                content: 'You need at least **3 cards of the same rarity** to combine.',
+                content: 'You need at least **3 cards of the same rarity** to merge.',
                 ephemeral: true,
             });
         }
@@ -71,19 +71,19 @@ module.exports = {
 
         const rarityMenu = new ActionRowBuilder().addComponents(
             new StringSelectMenuBuilder()
-                .setCustomId(`${combineId}_rarity`)
+                .setCustomId(`${mergeId}_rarity`)
                 .setPlaceholder('Select rarity...')
                 .addOptions(rarityOptions),
         );
 
         const introEmbed = new EmbedBuilder()
             .setDescription(
-                `### 🔀 Combine\n` +
+                `### 🔀 Merge\n` +
                 `**3 cards** → next rarity\n` +
                 `**5 cards** → skip a rarity\n`
             )
             .setColor(0x2b2d31)
-            .setFooter({ text: 'Combined cards are destroyed' });
+            .setFooter({ text: 'Merged cards are destroyed' });
 
         const reply = await interaction.reply({
             embeds: [introEmbed],
@@ -104,7 +104,7 @@ module.exports = {
 
         collector.on('collect', async (i) => {
             // ——— RARITY SELECT ———
-            if (phase === 'rarity_select' && i.customId === `${combineId}_rarity`) {
+            if (phase === 'rarity_select' && i.customId === `${mergeId}_rarity`) {
                 chosenRarity = i.values[0];
                 const count = rarityCounts[chosenRarity];
                 const emoji = config.rarityEmojis[chosenRarity] || '⚪';
@@ -116,7 +116,7 @@ module.exports = {
 
                 const countButtons = [
                     new ButtonBuilder()
-                        .setCustomId(`${combineId}_count_3`)
+                        .setCustomId(`${mergeId}_count_3`)
                         .setLabel(`3× ${cap(chosenRarity)} → ${cap(nextUp)}`)
                         .setStyle(ButtonStyle.Secondary),
                 ];
@@ -124,7 +124,7 @@ module.exports = {
                 if (count >= 5 && nextSkip) {
                     countButtons.push(
                         new ButtonBuilder()
-                            .setCustomId(`${combineId}_count_5`)
+                            .setCustomId(`${mergeId}_count_5`)
                             .setLabel(`5× ${cap(chosenRarity)} → ${cap(nextSkip)}`)
                             .setStyle(ButtonStyle.Primary),
                     );
@@ -132,7 +132,7 @@ module.exports = {
 
                 countButtons.push(
                     new ButtonBuilder()
-                        .setCustomId(`${combineId}_back`)
+                        .setCustomId(`${mergeId}_back`)
                         .setLabel('Back')
                         .setStyle(ButtonStyle.Secondary),
                 );
@@ -140,7 +140,7 @@ module.exports = {
                 const countRow = new ActionRowBuilder().addComponents(countButtons);
                 const countEmbed = new EmbedBuilder()
                     .setDescription(
-                        `### 🔀 Combine\n` +
+                        `### 🔀 Merge\n` +
                         `${emoji} **${cap(chosenRarity)}** — ${count} available\n`
                     )
                     .setColor(0x2b2d31);
@@ -149,7 +149,7 @@ module.exports = {
             }
 
             // ——— BACK ———
-            if (i.customId === `${combineId}_back`) {
+            if (i.customId === `${mergeId}_back`) {
                 phase = 'rarity_select';
                 chosenRarity = null;
                 combineCount = null;
@@ -158,7 +158,7 @@ module.exports = {
             }
 
             // ——— COUNT SELECT ———
-            if (phase === 'count_select' && i.customId.startsWith(`${combineId}_count_`)) {
+            if (phase === 'count_select' && i.customId.startsWith(`${mergeId}_count_`)) {
                 combineCount = parseInt(i.customId.split('_').pop());
                 phase = 'card_select';
                 selectedCardIds = [];
@@ -166,7 +166,7 @@ module.exports = {
             }
 
             // ——— CARD SELECT ———
-            if (phase === 'card_select' && i.customId === `${combineId}_cards`) {
+            if (phase === 'card_select' && i.customId === `${mergeId}_cards`) {
                 selectedCardIds.push(i.values[0]);
 
                 if (selectedCardIds.length < combineCount) {
@@ -183,7 +183,7 @@ module.exports = {
                 const cardLines = selectedCards.map(c => `╰ ${c.name}`).join('\n');
                 const confirmEmbed = new EmbedBuilder()
                     .setDescription(
-                        `### 🔀 Combine — Confirm\n` +
+                        `### 🔀 Merge — Confirm\n` +
                         `${emoji} **${cap(chosenRarity)}** × ${combineCount}\n` +
                         `${cardLines}\n\n` +
                         `Result: ${targetEmoji} 1× random **${cap(targetRarity)}**\n`
@@ -193,11 +193,11 @@ module.exports = {
 
                 const confirmRow = new ActionRowBuilder().addComponents(
                     new ButtonBuilder()
-                        .setCustomId(`${combineId}_confirm`)
-                        .setLabel('Combine')
+                        .setCustomId(`${mergeId}_confirm`)
+                        .setLabel('Merge')
                         .setStyle(ButtonStyle.Danger),
                     new ButtonBuilder()
-                        .setCustomId(`${combineId}_back`)
+                        .setCustomId(`${mergeId}_back`)
                         .setLabel('Cancel')
                         .setStyle(ButtonStyle.Secondary),
                 );
@@ -206,7 +206,7 @@ module.exports = {
             }
 
             // ——— CONFIRM ———
-            if (phase === 'confirm' && i.customId === `${combineId}_confirm`) {
+            if (phase === 'confirm' && i.customId === `${mergeId}_confirm`) {
                 phase = 'done';
 
                 // Verify ownership
@@ -250,7 +250,7 @@ module.exports = {
 
                 const step1Embed = new EmbedBuilder()
                     .setDescription(
-                        `### 🔥 Combining...\n` +
+                        `### 🔥 Merging...\n` +
                         `${emoji} **${cap(chosenRarity)}** → ${targetEmoji} **${cap(targetRarityLabel)}**\n\n` +
                         `${buildForgingLines(0)}\n`
                     )
@@ -272,7 +272,7 @@ module.exports = {
                     await new Promise(r => setTimeout(r, CARD_DELAY));
                     const stepEmbed = new EmbedBuilder()
                         .setDescription(
-                            `### 🔥 Combining...\n` +
+                            `### 🔥 Merging...\n` +
                             `${emoji} **${cap(chosenRarity)}** → ${targetEmoji} **${cap(targetRarityLabel)}**\n\n` +
                             `${buildForgingLines(step)}\n`
                         )
@@ -296,7 +296,7 @@ module.exports = {
                         `Added to ${username}'s collection.`
                     )
                     .setColor(parseInt(resultColor.replace('#', ''), 16))
-                    .setFooter({ text: `${combineCount}× ${cap(chosenRarity)} combined` })
+                    .setFooter({ text: `${combineCount}× ${cap(chosenRarity)} merged` })
                     .setTimestamp();
 
                 if (resultCard.imageUrl) revealEmbed.setImage(resultCard.imageUrl);
@@ -311,7 +311,7 @@ module.exports = {
                 await reply.edit({
                     components: [],
                     embeds: [new EmbedBuilder().setColor(0x2b2d31)
-                        .setDescription('Combine expired. No cards used.')],
+                        .setDescription('Merge expired. No cards used.')],
                 }).catch(() => { });
             }
         });
@@ -348,7 +348,7 @@ module.exports = {
                 return i.update({
                     components: [],
                     embeds: [new EmbedBuilder().setColor(0x2b2d31)
-                        .setDescription('Not enough cards to complete the combine.')],
+                        .setDescription('Not enough cards to complete the merge.')],
                 });
             }
 
@@ -363,21 +363,21 @@ module.exports = {
 
             const pickerEmbed = new EmbedBuilder()
                 .setDescription(
-                    `### 🔀 Combine — ${selectedCardIds.length + 1} of ${combineCount}\n` +
+                    `### 🔀 Merge — ${selectedCardIds.length + 1} of ${combineCount}\n` +
                     `Select a **${cap(chosenRarity)}** card.${progress}\n`
                 )
                 .setColor(0x2b2d31);
 
             const menu = new ActionRowBuilder().addComponents(
                 new StringSelectMenuBuilder()
-                    .setCustomId(`${combineId}_cards`)
+                    .setCustomId(`${mergeId}_cards`)
                     .setPlaceholder(`Card ${selectedCardIds.length + 1} of ${combineCount}`)
                     .addOptions(options),
             );
 
             const backRow = new ActionRowBuilder().addComponents(
                 new ButtonBuilder()
-                    .setCustomId(`${combineId}_back`)
+                    .setCustomId(`${mergeId}_back`)
                     .setLabel('Cancel')
                     .setStyle(ButtonStyle.Secondary),
             );
