@@ -77,14 +77,18 @@ module.exports = {
         const focused = interaction.options.getFocused().toLowerCase();
         const inv = dm.getUserInventory(interaction.user.id);
         const all = dm.getCards();
-        const owned = inv.filter(c => c.quantity > 0).map(c => c.cardId);
+        const ownedEntries = inv.filter(c => c.quantity > 0);
+        const ownedIds = ownedEntries.map(c => c.cardId);
         const results = all
-            .filter(c => owned.includes(c.id) && c.name.toLowerCase().includes(focused))
+            .filter(c => ownedIds.includes(c.id) && c.name.toLowerCase().includes(focused))
             .slice(0, 25);
-        await interaction.respond(results.map(c => ({
-            name: `${c.name} (${c.rarity})`,
-            value: c.id,
-        })));
+        await interaction.respond(results.map(c => {
+            const qty = ownedEntries.find(e => e.cardId === c.id)?.quantity ?? 1;
+            return {
+                name: `${c.name} (${c.rarity}) x${qty}`,
+                value: c.id,
+            };
+        }));
     },
 
     async execute(interaction) {
@@ -214,10 +218,10 @@ module.exports = {
                     // Show card picker
                     const targetInv = dm.getUserInventory(id2);
                     const allCards = dm.getCards();
-                    const targetOwned = targetInv
-                        .filter(e => e.quantity > 0)
-                        .map(e => allCards.find(c => c.id === e.cardId))
-                        .filter(Boolean);
+                    const targetOwnedEntries = targetInv.filter(e => e.quantity > 0);
+                    const targetOwned = targetOwnedEntries
+                        .map(e => ({ ...allCards.find(c => c.id === e.cardId), qty: e.quantity }))
+                        .filter(c => c.id);
 
                     if (targetOwned.length === 0) {
                         cleanup();
@@ -235,7 +239,7 @@ module.exports = {
                         return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi);
                     });
                     const options = targetOwned.slice(0, 25).map(c => ({
-                        label: c.name,
+                        label: `${c.name} (x${c.qty})`,
                         description: c.rarity.charAt(0).toUpperCase() + c.rarity.slice(1),
                         value: c.id,
                         emoji: config.rarityEmojis[c.rarity] || '⚪',
@@ -341,7 +345,7 @@ module.exports = {
                     dm.lockCard(id2, card2.id);
 
                     const embed = fightEmbed(round, card1, card2, name1, name2, hp1, hp2,
-                        '🪨📄✂️ Both players, pick your move!');
+                        'Both players, pick your move!');
                     await i.update({ content: '', embeds: [embed], components: rpsRow(duelId) });
                     startRoundTimer();
                     return;
@@ -431,7 +435,7 @@ module.exports = {
                     picks = {};
                     resolving = false;
                     const nextEmbed = fightEmbed(round, card1, card2, name1, name2, hp1, hp2,
-                        '🪨📄✂️ Both players, pick your move!');
+                        'Both players, pick your move!');
                     await reply.edit({ embeds: [nextEmbed], components: rpsRow(duelId) }).catch(() => { });
                     startRoundTimer();
                 }, 2000);
