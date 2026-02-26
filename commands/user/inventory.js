@@ -2,7 +2,9 @@ const { SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, ButtonBuilder, Butt
 const dm = require('../../utils/dataManager');
 const { config } = require('../../utils/config');
 
-const CARDS_PER_PAGE = 5;
+const LINES_PER_PAGE = 8;
+
+const RARITY_ORDER = ['legendary', 'epic', 'rare', 'uncommon', 'common'];
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -25,31 +27,59 @@ module.exports = {
             });
         }
 
-        const cardEntries = userCards
+        // Resolve cards and attach rarity for sorting
+        const resolved = userCards
             .filter(entry => entry.quantity > 0)
             .map(entry => {
                 const card = allCards.find(c => c.id === entry.cardId);
                 if (!card) return null;
-                const emoji = config.rarityEmojis[card.rarity] || '⚪';
-                const qtyStr = entry.quantity > 1 ? ` x${entry.quantity}` : '';
-                return `${emoji} **${card.name}**${qtyStr}`;
+                return { card, quantity: entry.quantity };
             })
             .filter(Boolean);
 
+        // Sort by rarity (legendary first)
+        resolved.sort((a, b) => {
+            const ai = RARITY_ORDER.indexOf(a.card.rarity);
+            const bi = RARITY_ORDER.indexOf(b.card.rarity);
+            return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi);
+        });
+
+        // Build display lines with rarity headers
+        const displayLines = [];
+        let lastRarity = null;
+
+        for (const { card, quantity } of resolved) {
+            if (card.rarity !== lastRarity) {
+                const emoji = config.rarityEmojis[card.rarity] || '⚪';
+                const label = card.rarity.charAt(0).toUpperCase() + card.rarity.slice(1);
+                if (lastRarity !== null) displayLines.push('');
+                displayLines.push(`${emoji} **${label}**`);
+                lastRarity = card.rarity;
+            }
+            const qtyStr = quantity > 1 ? ` x${quantity}` : '';
+            displayLines.push(`╰ ${card.name}${qtyStr}`);
+        }
+
         const totalCards = userCards.reduce((sum, e) => sum + e.quantity, 0);
-        const totalPages = Math.ceil(cardEntries.length / CARDS_PER_PAGE);
+        const uniqueCount = resolved.length;
+
+        // Paginate the display lines
+        const pages = [];
+        for (let i = 0; i < displayLines.length; i += LINES_PER_PAGE) {
+            pages.push(displayLines.slice(i, i + LINES_PER_PAGE));
+        }
+        if (pages.length === 0) pages.push(['No cards to display.']);
+
+        const totalPages = pages.length;
         let page = 0;
 
         const buildEmbed = (p) => {
-            const start = p * CARDS_PER_PAGE;
-            const pageCards = cardEntries.slice(start, start + CARDS_PER_PAGE);
-
             return new EmbedBuilder()
                 .setTitle(`📦 ${targetUser.username}'s Collection`)
-                .setDescription(pageCards.join('\n'))
+                .setDescription(pages[p].join('\n'))
                 .setColor(0x5865f2)
                 .setThumbnail(targetUser.displayAvatarURL())
-                .setFooter({ text: `${totalCards} total cards • ${cardEntries.length} unique • Page ${p + 1}/${totalPages}` });
+                .setFooter({ text: `${totalCards} total · ${uniqueCount} unique · Page ${p + 1}/${totalPages}` });
         };
 
         const buildButtons = (p) => {
