@@ -7,6 +7,7 @@ const { config } = require('../../utils/config');
 
 const MAX_HP = 3;
 const RARITY_BONUS = { common: 0, uncommon: 1, rare: 2, epic: 3, legendary: 4 };
+const RARITY_ORDER = ['legendary', 'epic', 'rare', 'uncommon', 'common'];
 
 const HIT_LINES = [
     '💥 Direct hit!', '� Solid strike!', '⚡ Landed clean!',
@@ -22,7 +23,7 @@ const KO_LINES = [
 
 function pick(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
 function dice() { return Math.floor(Math.random() * 6) + 1; }
-function hpBar(hp) { return '❤️'.repeat(hp) + '🖤'.repeat(MAX_HP - hp); }
+function hpBar(hp) { return '❤️'.repeat(hp) + '🩶'.repeat(MAX_HP - hp); }
 
 function fightEmbed(round, c1, c2, n1, n2, hp1, hp2, statusText) {
     const e1 = config.rarityEmojis[c1.rarity] || '⚪';
@@ -201,6 +202,11 @@ module.exports = {
                     }
 
                     phase = 'card_select';
+                    targetOwned.sort((a, b) => {
+                        const ai = RARITY_ORDER.indexOf(a.rarity);
+                        const bi = RARITY_ORDER.indexOf(b.rarity);
+                        return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi);
+                    });
                     const options = targetOwned.slice(0, 25).map(c => ({
                         label: c.name,
                         description: c.rarity.charAt(0).toUpperCase() + c.rarity.slice(1),
@@ -247,21 +253,72 @@ module.exports = {
                     });
                 }
 
-                // ——— START FIGHT ———
-                phase = 'fight';
-                round = 1;
-                rolls = {};
-                resolving = false;
+                // ——— CONFIRM PHASE ———
+                phase = 'confirm';
+                const e2 = config.rarityEmojis[card2.rarity] || '⚪';
+                const r2Label = card2.rarity.charAt(0).toUpperCase() + card2.rarity.slice(1);
 
-                // Lock both cards
-                dm.lockCard(id1, card1.id);
-                dm.lockCard(id2, card2.id);
+                const confirmEmbed = new EmbedBuilder()
+                    .setTitle('⚔️ Ready to fight?')
+                    .setColor(0xed4245)
+                    .setDescription(
+                        `${e1} **${card1.name}** · ${r1Label} — ${name1}\n\n` +
+                        `**VS**\n\n` +
+                        `${e2} **${card2.name}** · ${r2Label} — ${name2}\n\n` +
+                        `${name1}, do you want to fight?`
+                    )
+                    .setFooter({ text: 'Loser gives up their card' });
 
-                const embed = fightEmbed(round, card1, card2, name1, name2, hp1, hp2,
-                    'Both players, hit **Roll 🎲**!');
-                await i.update({ content: '', embeds: [embed], components: rollRow(duelId) });
-                startRoundTimer();
-                return;
+                if (card2.imageUrl) confirmEmbed.setThumbnail(card2.imageUrl);
+
+                const confirmRow = new ActionRowBuilder().addComponents(
+                    new ButtonBuilder().setCustomId(`${duelId}_fight`).setLabel('Fight! ⚔️').setStyle(ButtonStyle.Danger),
+                    new ButtonBuilder().setCustomId(`${duelId}_cancel`).setLabel('Cancel').setStyle(ButtonStyle.Secondary),
+                );
+
+                return i.update({ content: '', embeds: [confirmEmbed], components: [confirmRow] });
+            }
+
+            // ——— CONFIRM PHASE ———
+            if (phase === 'confirm') {
+                if (i.user.id !== id1) return i.reply({ content: '❌ Only the challenger can confirm.', ephemeral: true });
+
+                if (i.customId === `${duelId}_cancel`) {
+                    cleanup();
+                    collector.stop('cancelled');
+                    return i.update({
+                        content: '', components: [],
+                        embeds: [new EmbedBuilder().setColor(0x2b2d31).setDescription(`**${name1}** cancelled the duel. No cards lost.`)],
+                    });
+                }
+
+                if (i.customId === `${duelId}_fight`) {
+                    // Final ownership checks
+                    if (!dm.userHasCard(id1, cardId) || !dm.userHasCard(id2, card2.id)) {
+                        cleanup();
+                        collector.stop('card_gone');
+                        return i.update({
+                            content: '', components: [],
+                            embeds: [new EmbedBuilder().setColor(0x2b2d31).setDescription('❌ Duel cancelled — a card is no longer available.')],
+                        });
+                    }
+
+                    // ——— START FIGHT ———
+                    phase = 'fight';
+                    round = 1;
+                    rolls = {};
+                    resolving = false;
+
+                    // Lock both cards
+                    dm.lockCard(id1, card1.id);
+                    dm.lockCard(id2, card2.id);
+
+                    const embed = fightEmbed(round, card1, card2, name1, name2, hp1, hp2,
+                        'Both players, hit **Roll 🎲**!');
+                    await i.update({ content: '', embeds: [embed], components: rollRow(duelId) });
+                    startRoundTimer();
+                    return;
+                }
             }
 
             // ——— FIGHT PHASE ———
@@ -321,16 +378,18 @@ module.exports = {
                         cleanup();
 
                         const e2 = config.rarityEmojis[card2.rarity] || '⚪';
+                        const winnerCard = hp1 > 0 ? card1 : card2;
+                        const winnerE = config.rarityEmojis[winnerCard.rarity] || '⚪';
+                        const stolenRarity = stolen.rarity.charAt(0).toUpperCase() + stolen.rarity.slice(1);
+
                         const finalEmbed = new EmbedBuilder()
-                            .setTitle(pick(KO_LINES))
+                            .setTitle(`🏆 ${winnerName} wins!`)
                             .setColor(0xfee75c)
                             .setDescription(
-                                `${e1} **${card1.name}**\n${hpBar(hp1)} — ${name1}\n\n` +
-                                `**VS**\n\n` +
-                                `${e2} **${card2.name}**\n${hpBar(hp2)} — ${name2}\n\n` +
+                                `${pick(KO_LINES)}\n\n` +
+                                `${winnerE} **${winnerCard.name}** defeated ${stolenE} **${stolen.name}** in ${round} rounds\n\n` +
                                 `───────────────\n\n` +
-                                `🏆 **${winnerName}** wins!\n` +
-                                `Took ${stolenE} **${stolen.name}** from ${loserName}`
+                                `**${winnerName}** took ${stolenE} **${stolen.name}** (${stolenRarity}) from **${loserName}**`
                             )
                             .setTimestamp();
 
