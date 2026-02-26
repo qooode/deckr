@@ -233,51 +233,76 @@ module.exports = {
                     });
                 }
 
-                // Forging — brief suspense
+                // ——— ANIMATION: cards consumed one by one ———
                 const emoji = config.rarityEmojis[chosenRarity] || '⚪';
                 const sacrificedCards = selectedCardIds.map(id => allCards.find(c => c.id === id)).filter(Boolean);
-                const fadeLines = sacrificedCards.map(c => `╰ ~~${c.name}~~`).join('\n');
+                const targetRarityLabel = combineCount === 5 ? RARITY_SKIP[chosenRarity] : RARITY_UP[chosenRarity];
+                const targetEmoji = config.rarityEmojis[targetRarityLabel] || '⚪';
+                const targetColor = config.rarityColors[targetRarityLabel] || '#2b2d31';
 
-                const forgingEmbed = new EmbedBuilder()
+                // Step 1: show all cards alive
+                function buildForgingLines(fadedCount) {
+                    return sacrificedCards.map((c, idx) => {
+                        if (idx < fadedCount) return `╰ ~~${c.name}~~`;
+                        return `╰ ${c.name}`;
+                    }).join('\n');
+                }
+
+                const step1Embed = new EmbedBuilder()
                     .setDescription(
                         `### 🔥 Combining...\n` +
-                        `${emoji} ${fadeLines}\n`
+                        `${emoji} **${cap(chosenRarity)}** → ${targetEmoji} **${cap(targetRarityLabel)}**\n\n` +
+                        `${buildForgingLines(0)}\n`
                     )
                     .setColor(0x2b2d31);
 
-                await i.update({ embeds: [forgingEmbed], components: [] });
+                await i.update({ embeds: [step1Embed], components: [] });
 
-                // Remove cards
+                // Remove cards & pick result early (so data is safe)
                 for (const cardId of selectedCardIds) {
                     dm.removeCardFromUser(userId, cardId);
                 }
-
-                // Pick result
                 const resultCard = pick(eligibleResults);
                 dm.addCardToUser(userId, username, resultCard.id);
 
-                // Reveal
-                setTimeout(async () => {
-                    const resultEmoji = config.rarityEmojis[resultCard.rarity] || '⚪';
-                    const resultColor = config.rarityColors[resultCard.rarity] || '#2b2d31';
-                    const isSkip = combineCount === 5;
+                // Steps 2+: strike through cards one by one
+                const CARD_DELAY = 800;
 
-                    const revealEmbed = new EmbedBuilder()
+                for (let step = 1; step <= sacrificedCards.length; step++) {
+                    await new Promise(r => setTimeout(r, CARD_DELAY));
+                    const stepEmbed = new EmbedBuilder()
                         .setDescription(
-                            `### ${resultEmoji} ${resultCard.name}\n` +
-                            `${cap(resultCard.rarity)}` +
-                            (isSkip ? ' — rarity skip' : '') + `\n\n` +
-                            `${fadeLines}\n\n` +
-                            `Added to ${username}'s collection.`
+                            `### 🔥 Combining...\n` +
+                            `${emoji} **${cap(chosenRarity)}** → ${targetEmoji} **${cap(targetRarityLabel)}**\n\n` +
+                            `${buildForgingLines(step)}\n`
                         )
-                        .setColor(parseInt(resultColor.replace('#', ''), 16))
-                        .setTimestamp();
+                        .setColor(0x2b2d31);
+                    await reply.edit({ embeds: [stepEmbed] }).catch(() => { });
+                }
 
-                    if (resultCard.imageUrl) revealEmbed.setImage(resultCard.imageUrl);
+                // Brief pause before reveal
+                await new Promise(r => setTimeout(r, 1200));
 
-                    collector.stop('finished');
-                    await reply.edit({ embeds: [revealEmbed], components: [] }).catch(() => { });
-                }, 2500);
+                // ——— REVEAL ———
+                const resultEmoji = config.rarityEmojis[resultCard.rarity] || '⚪';
+                const resultColor = config.rarityColors[resultCard.rarity] || '#2b2d31';
+                const isSkip = combineCount === 5;
+
+                const revealEmbed = new EmbedBuilder()
+                    .setDescription(
+                        `### ${resultEmoji} ${resultCard.name}\n` +
+                        `${cap(resultCard.rarity)}` +
+                        (isSkip ? ' — rarity skip' : '') + `\n\n` +
+                        `Added to ${username}'s collection.`
+                    )
+                    .setColor(parseInt(resultColor.replace('#', ''), 16))
+                    .setFooter({ text: `${combineCount}× ${cap(chosenRarity)} combined` })
+                    .setTimestamp();
+
+                if (resultCard.imageUrl) revealEmbed.setImage(resultCard.imageUrl);
+
+                collector.stop('finished');
+                await reply.edit({ embeds: [revealEmbed], components: [] }).catch(() => { });
             }
         });
 
