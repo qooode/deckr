@@ -90,6 +90,17 @@ client.on(Events.InteractionCreate, async (interaction) => {
     }
 });
 
+// ---------- Error Handling ----------
+
+process.on('unhandledRejection', (error) => {
+    console.error('❌ Unhandled promise rejection:', error);
+});
+
+process.on('uncaughtException', (error) => {
+    console.error('❌ Uncaught exception:', error);
+    // Don't exit — keep the bot alive
+});
+
 // ---------- Login ----------
 
 client.login(config.token);

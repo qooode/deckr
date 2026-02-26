@@ -120,6 +120,43 @@ function userHasCard(userId, cardId) {
   return entry && entry.quantity > 0;
 }
 
+// Safe atomic transfer: add to winner FIRST, then remove from loser.
+// If the bot crashes between the two writes, the card is duplicated (recoverable)
+// rather than deleted (unrecoverable).
+function transferCard(fromUserId, toUserId, toUsername, cardId) {
+  addCardToUser(toUserId, toUsername, cardId);
+  removeCardFromUser(fromUserId, cardId);
+}
+
+// ---------- Card Locking (in-memory, prevents double-staking) ----------
+
+const lockedCards = new Map(); // userId -> Set of cardIds
+
+function lockCard(userId, cardId) {
+  if (!lockedCards.has(userId)) lockedCards.set(userId, new Set());
+  lockedCards.get(userId).add(cardId);
+}
+
+function unlockCard(userId, cardId) {
+  const set = lockedCards.get(userId);
+  if (set) {
+    set.delete(cardId);
+    if (set.size === 0) lockedCards.delete(userId);
+  }
+}
+
+function isCardLocked(userId, cardId) {
+  return lockedCards.has(userId) && lockedCards.get(userId).has(cardId);
+}
+
+// ---------- Active Duels (one duel per person) ----------
+
+const activeDuelists = new Set();
+
+function isInDuel(userId) { return activeDuelists.has(userId); }
+function setInDuel(userId) { activeDuelists.add(userId); }
+function clearDuel(userId) { activeDuelists.delete(userId); }
+
 // ---------- Cooldowns ----------
 
 function getCooldowns() {
@@ -323,6 +360,8 @@ function importAll(data) {
 module.exports = {
   getCards, saveCards, addCard, deleteCard, findCardById, findCardByName, generateCardId,
   getInventory, saveInventory, getUserInventory, addCardToUser, removeCardFromUser, userHasCard,
+  transferCard, lockCard, unlockCard, isCardLocked,
+  isInDuel, setInDuel, clearDuel,
   canClaim, recordClaim,
   getTrades, addTrade, findTradeById, removeTrade, generateTradeId,
   getLeaderboard, getRandomCard, getRandomCards,

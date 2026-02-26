@@ -63,8 +63,16 @@ module.exports = {
             return interaction.reply({ content: `❌ You don't own **${yourCard.name}**!`, ephemeral: true });
         }
 
+        if (dm.isCardLocked(interaction.user.id, yourCardId)) {
+            return interaction.reply({ content: `❌ **${yourCard.name}** is staked in a duel!`, ephemeral: true });
+        }
+
         if (!dm.userHasCard(targetUser.id, theirCardId)) {
             return interaction.reply({ content: `❌ **${targetUser.username}** doesn't own **${theirCard.name}**!`, ephemeral: true });
+        }
+
+        if (dm.isCardLocked(targetUser.id, theirCardId)) {
+            return interaction.reply({ content: `❌ **${theirCard.name}** is staked in a duel!`, ephemeral: true });
         }
 
         const tradeId = dm.generateTradeId();
