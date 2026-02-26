@@ -6,7 +6,11 @@ const dm = require('../../utils/dataManager');
 const { config } = require('../../utils/config');
 
 const MAX_HP = 3;
-const RARITY_BONUS = { common: 0, uncommon: 1, rare: 2, epic: 3, legendary: 4 };
+const RPS_MOVES = {
+    rock: { emoji: '🪨', label: 'Rock', beats: 'scissors' },
+    paper: { emoji: '📄', label: 'Paper', beats: 'rock' },
+    scissors: { emoji: '✂️', label: 'Scissors', beats: 'paper' },
+};
 const RARITY_ORDER = ['legendary', 'epic', 'rare', 'uncommon', 'common'];
 
 const HIT_LINES = [
@@ -22,7 +26,7 @@ const KO_LINES = [
 ];
 
 function pick(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
-function dice() { return Math.floor(Math.random() * 6) + 1; }
+
 function hpBar(hp) { return '❤️'.repeat(hp) + '🩶'.repeat(MAX_HP - hp); }
 
 function fightEmbed(round, c1, c2, n1, n2, hp1, hp2, statusText) {
@@ -40,12 +44,23 @@ function fightEmbed(round, c1, c2, n1, n2, hp1, hp2, statusText) {
     return embed;
 }
 
-function rollRow(duelId) {
+function rpsRow(duelId) {
     return [new ActionRowBuilder().addComponents(
         new ButtonBuilder()
-            .setCustomId(`${duelId}_roll`)
-            .setLabel('Roll 🎲')
-            .setStyle(ButtonStyle.Primary),
+            .setCustomId(`${duelId}_rock`)
+            .setLabel('Rock')
+            .setEmoji('🪨')
+            .setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder()
+            .setCustomId(`${duelId}_paper`)
+            .setLabel('Paper')
+            .setEmoji('📄')
+            .setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder()
+            .setCustomId(`${duelId}_scissors`)
+            .setLabel('Scissors')
+            .setEmoji('✂️')
+            .setStyle(ButtonStyle.Secondary),
     )];
 }
 
@@ -128,7 +143,7 @@ module.exports = {
         let card2 = null;
         let hp1 = MAX_HP, hp2 = MAX_HP;
         let round = 0;
-        let rolls = {};
+        let picks = {};
         let phase = 'challenge';
         let resolving = false;
         let roundTimer = null;
@@ -150,17 +165,17 @@ module.exports = {
                 resolving = true;
                 collector.stop('round_timeout');
 
-                const p1Rolled = !!rolls[id1];
-                const p2Rolled = !!rolls[id2];
+                const p1Picked = !!picks[id1];
+                const p2Picked = !!picks[id2];
                 let msg;
-                if (!p1Rolled && !p2Rolled) {
-                    msg = '⏰ Neither player rolled. Duel cancelled — no cards lost.';
-                } else if (!p1Rolled) {
-                    msg = `⏰ **${name1}** didn't roll. **${name2}** wins by forfeit!\nTook ${e1} **${card1.name}** from ${name1}`;
+                if (!p1Picked && !p2Picked) {
+                    msg = '⏰ Neither player picked. Duel cancelled — no cards lost.';
+                } else if (!p1Picked) {
+                    msg = `⏰ **${name1}** didn't pick. **${name2}** wins by forfeit!\nTook ${e1} **${card1.name}** from ${name1}`;
                     dm.transferCard(id1, id2, name2, card1.id);
                 } else {
                     const e2 = config.rarityEmojis[card2.rarity] || '⚪';
-                    msg = `⏰ **${name2}** didn't roll. **${name1}** wins by forfeit!\nTook ${e2} **${card2.name}** from ${name2}`;
+                    msg = `⏰ **${name2}** didn't pick. **${name1}** wins by forfeit!\nTook ${e2} **${card2.name}** from ${name2}`;
                     dm.transferCard(id2, id1, name1, card2.id);
                 }
                 await reply.edit({
@@ -318,7 +333,7 @@ module.exports = {
                     // ——— START FIGHT ———
                     phase = 'fight';
                     round = 1;
-                    rolls = {};
+                    picks = {};
                     resolving = false;
 
                     // Lock both cards
@@ -326,8 +341,8 @@ module.exports = {
                     dm.lockCard(id2, card2.id);
 
                     const embed = fightEmbed(round, card1, card2, name1, name2, hp1, hp2,
-                        'Both players, hit **Roll 🎲**!');
-                    await i.update({ content: '', embeds: [embed], components: rollRow(duelId) });
+                        '🪨📄✂️ Both players, pick your move!');
+                    await i.update({ content: '', embeds: [embed], components: rpsRow(duelId) });
                     startRoundTimer();
                     return;
                 }
@@ -335,41 +350,40 @@ module.exports = {
 
             // ——— FIGHT PHASE ———
             if (phase === 'fight') {
-                if (i.customId !== `${duelId}_roll`) return;
+                const move = i.customId.replace(`${duelId}_`, '');
+                if (!RPS_MOVES[move]) return;
                 if (resolving) return i.reply({ content: '⏳ Round resolving...', ephemeral: true });
                 if (i.user.id !== id1 && i.user.id !== id2) return i.reply({ content: '❌ This duel isn\'t for you.', ephemeral: true });
-                if (rolls[i.user.id]) return i.reply({ content: '✅ You already rolled! Waiting for the other player.', ephemeral: true });
+                if (picks[i.user.id]) return i.reply({ content: '✅ You already picked! Waiting for the other player.', ephemeral: true });
 
-                // Roll
-                const d = dice();
-                const rarity = i.user.id === id1 ? card1.rarity : card2.rarity;
-                rolls[i.user.id] = d + (RARITY_BONUS[rarity] || 0);
+                // Store pick (secret until both choose)
+                picks[i.user.id] = move;
 
                 // Still waiting for the other player?
-                if (!rolls[id1] || !rolls[id2]) {
+                if (!picks[id1] || !picks[id2]) {
                     const who = i.user.id === id1 ? name1 : name2;
                     const waiting = i.user.id === id1 ? name2 : name1;
                     const embed = fightEmbed(round, card1, card2, name1, name2, hp1, hp2,
-                        `✅ **${who}** rolled!\n⏳ Waiting for **${waiting}**...`);
-                    return i.update({ embeds: [embed], components: rollRow(duelId) });
+                        `✅ **${who}** locked in!\n⏳ Waiting for **${waiting}**...`);
+                    return i.update({ embeds: [embed], components: rpsRow(duelId) });
                 }
 
                 // ——— RESOLVE ROUND ———
                 resolving = true;
                 clearTimeout(roundTimer);
 
-                const t1 = rolls[id1];
-                const t2 = rolls[id2];
+                const m1 = picks[id1];
+                const m2 = picks[id2];
 
                 let resultLine;
-                if (t1 > t2) {
+                if (m1 === m2) {
+                    resultLine = `${name1}: ${RPS_MOVES[m1].emoji} **${RPS_MOVES[m1].label}** vs ${name2}: ${RPS_MOVES[m2].emoji} **${RPS_MOVES[m2].label}**\n${pick(CLASH_LINES)}`;
+                } else if (RPS_MOVES[m1].beats === m2) {
                     hp2 = Math.max(0, hp2 - 1);
-                    resultLine = `🎲 ${name1}: **${t1}** vs ${name2}: **${t2}**\n${pick(HIT_LINES)} **${card2.name}** takes a hit!`;
-                } else if (t2 > t1) {
-                    hp1 = Math.max(0, hp1 - 1);
-                    resultLine = `🎲 ${name1}: **${t1}** vs ${name2}: **${t2}**\n${pick(HIT_LINES)} **${card1.name}** takes a hit!`;
+                    resultLine = `${name1}: ${RPS_MOVES[m1].emoji} **${RPS_MOVES[m1].label}** vs ${name2}: ${RPS_MOVES[m2].emoji} **${RPS_MOVES[m2].label}**\n${pick(HIT_LINES)} **${card2.name}** takes a hit!`;
                 } else {
-                    resultLine = `🎲 ${name1}: **${t1}** vs ${name2}: **${t2}**\n${pick(CLASH_LINES)}`;
+                    hp1 = Math.max(0, hp1 - 1);
+                    resultLine = `${name1}: ${RPS_MOVES[m1].emoji} **${RPS_MOVES[m1].label}** vs ${name2}: ${RPS_MOVES[m2].emoji} **${RPS_MOVES[m2].label}**\n${pick(HIT_LINES)} **${card1.name}** takes a hit!`;
                 }
 
                 const roundEmbed = fightEmbed(round, card1, card2, name1, name2, hp1, hp2, resultLine);
@@ -414,11 +428,11 @@ module.exports = {
                 // ——— Next round ———
                 setTimeout(async () => {
                     round++;
-                    rolls = {};
+                    picks = {};
                     resolving = false;
                     const nextEmbed = fightEmbed(round, card1, card2, name1, name2, hp1, hp2,
-                        'Both players, hit **Roll 🎲**!');
-                    await reply.edit({ embeds: [nextEmbed], components: rollRow(duelId) }).catch(() => { });
+                        '🪨📄✂️ Both players, pick your move!');
+                    await reply.edit({ embeds: [nextEmbed], components: rpsRow(duelId) }).catch(() => { });
                     startRoundTimer();
                 }, 2000);
             }
