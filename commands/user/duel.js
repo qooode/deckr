@@ -110,6 +110,7 @@ module.exports = {
         const challengeRow = new ActionRowBuilder().addComponents(
             new ButtonBuilder().setCustomId(`${duelId}_accept`).setLabel('Accept ⚔️').setStyle(ButtonStyle.Danger),
             new ButtonBuilder().setCustomId(`${duelId}_decline`).setLabel('Decline').setStyle(ButtonStyle.Secondary),
+            new ButtonBuilder().setCustomId(`${duelId}_withdraw`).setLabel('Cancel').setStyle(ButtonStyle.Secondary),
         );
 
         const reply = await interaction.reply({
@@ -172,6 +173,17 @@ module.exports = {
         collector.on('collect', async (i) => {
             // ——— CHALLENGE PHASE ———
             if (phase === 'challenge') {
+                // Challenger cancels
+                if (i.customId === `${duelId}_withdraw` && i.user.id === id1) {
+                    cleanup();
+                    collector.stop('withdrawn');
+                    return i.update({
+                        content: '', components: [],
+                        embeds: [new EmbedBuilder().setColor(0x2b2d31).setDescription(`**${name1}** cancelled the challenge. No cards lost.`)],
+                    });
+                }
+
+                // Only the target can accept/decline
                 if (i.user.id !== id2) return i.reply({ content: '❌ This duel isn\'t for you.', ephemeral: true });
 
                 if (i.customId === `${duelId}_decline`) {
