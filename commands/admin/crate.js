@@ -137,8 +137,8 @@ module.exports = {
                     `### 📦 Crate Sealed — Choose!\n` +
                     `**${names.length}** players are deciding...\n\n` +
                     names.map(n => `╰ ${n} — ⏳`).join('\n') + '\n\n' +
-                    `🤝 **Everyone shares** → everyone gets a **${cap(REWARD_ALL_SHARE)}+** card\n` +
-                    `💰 **You steal** → stealers get an **${cap(REWARD_STEALERS)}+** card, sharers get nothing\n` +
+                    `🤝 **Everyone shares** → Rare (75%) · Epic (20%) · Legendary (5%)\n` +
+                    `💰 **You steal** → Epic (80%) · Legendary (20%) — sharers get nothing\n` +
                     `💀 **Everyone steals** → nobody gets anything\n`
                 )
                 .setColor(0xfee75c)
@@ -201,8 +201,8 @@ module.exports = {
                         `### 📦 Crate Sealed — Choose!\n` +
                         `**${names.length}** players are deciding...\n\n` +
                         updatedLines.join('\n') + '\n\n' +
-                        `🤝 **Everyone shares** → everyone gets a **${cap(REWARD_ALL_SHARE)}+** card\n` +
-                        `💰 **You steal** → stealers get an **${cap(REWARD_STEALERS)}+** card, sharers get nothing\n` +
+                        `🤝 **Everyone shares** → Rare (75%) · Epic (20%) · Legendary (5%)\n` +
+                        `💰 **You steal** → Epic (80%) · Legendary (20%) — sharers get nothing\n` +
                         `💀 **Everyone steals** → nobody gets anything\n`
                     );
 
