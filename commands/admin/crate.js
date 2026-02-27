@@ -78,7 +78,7 @@ module.exports = {
                 .setStyle(ButtonStyle.Secondary),
         );
 
-        const msg = await channel.send({
+        let msg = await channel.send({
             embeds: [buildJoinEmbed()],
             components: [joinRow],
         });
@@ -130,7 +130,6 @@ module.exports = {
 
             const votes = new Map(); // userId → 'share' | 'steal'
             const playerIds = [...participants.keys()];
-            const voteDeadline = Date.now() + VOTE_DURATION_MS;
 
             const names = [...participants.values()];
             const votingEmbed = new EmbedBuilder()
@@ -158,7 +157,19 @@ module.exports = {
                     .setStyle(ButtonStyle.Danger),
             );
 
-            await msg.edit({ embeds: [votingEmbed], components: [voteRow] });
+            // Delete old message, send a fresh one at the bottom of chat
+            await msg.delete().catch(() => { });
+
+            // Ping all participants so they get notified, then edit pings away
+            const mentions = playerIds.map(id => `<@${id}>`).join(' ');
+            msg = await channel.send({
+                content: `${mentions} — time to vote!`,
+                embeds: [votingEmbed],
+                components: [voteRow],
+            });
+
+            // Remove pings from content so chat stays clean
+            await msg.edit({ content: '' }).catch(() => { });
 
             const voteCollector = msg.createMessageComponentCollector({
                 filter: (i) =>
