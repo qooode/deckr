@@ -47,9 +47,9 @@ A Discord bot for dropping, claiming, collecting, and trading cards. Admin-contr
 |---|---|---|---|
 | Common | 50 | 1 pt | ⚪ |
 | Uncommon | 30 | 4 pts | 🟢 |
-| Rare | 15 | 15 pts | 🔵 |
-| Epic | 4 | 55 pts | 🟣 |
-| Legendary | 1 | 200 pts | 🟡 |
+| Rare | 15 | 13 pts | 🔵 |
+| Epic | 4 | 42 pts | 🟣 |
+| Legendary | 1 | 130 pts | 🟡 |
 
 Higher weight = more likely to appear in random claims. Rarity score determines leaderboard ranking.
 

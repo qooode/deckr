@@ -224,9 +224,9 @@ function getLeaderboard() {
   const rarityScores = {
     common: 1,
     uncommon: 4,
-    rare: 15,
-    epic: 55,
-    legendary: 200,
+    rare: 13,
+    epic: 42,
+    legendary: 130,
   };
 
   const leaderboard = [];
