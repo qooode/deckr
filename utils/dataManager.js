@@ -326,6 +326,35 @@ function getRandomCards(count) {
   return results;
 }
 
+// ---------- Weighted Random Card (Minimum Rarity) ----------
+
+const RARITY_TIERS = { common: 0, uncommon: 1, rare: 2, epic: 3, legendary: 4 };
+
+function getRandomCardMinRarity(minRarity) {
+  const cards = getCards();
+  if (cards.length === 0) return null;
+  const { config } = require('./config');
+  const weights = config.rarityWeights;
+  const minTier = RARITY_TIERS[minRarity] ?? 0;
+
+  const pool = cards.filter(c => (RARITY_TIERS[c.rarity] ?? 0) >= minTier);
+  if (pool.length === 0) return getRandomCard(); // fallback to any card
+
+  const weighted = pool.map(card => ({
+    card,
+    weight: weights[card.rarity] ?? 1,
+  }));
+
+  const totalWeight = weighted.reduce((sum, w) => sum + w.weight, 0);
+  let roll = Math.random() * totalWeight;
+
+  for (const { card, weight } of weighted) {
+    roll -= weight;
+    if (roll <= 0) return card;
+  }
+  return weighted[weighted.length - 1].card;
+}
+
 // ---------- Export / Import ----------
 
 function exportAll() {
@@ -364,7 +393,7 @@ module.exports = {
   isInDuel, setInDuel, clearDuel,
   canClaim, recordClaim,
   getTrades, addTrade, findTradeById, removeTrade, generateTradeId,
-  getLeaderboard, getRandomCard, getRandomCards,
+  getLeaderboard, getRandomCard, getRandomCards, getRandomCardMinRarity,
   exportAll, importAll,
   PATHS,
 };
