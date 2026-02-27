@@ -46,10 +46,10 @@ A Discord bot for dropping, claiming, collecting, and trading cards. Admin-contr
 | Rarity | Weight | Score | Emoji |
 |---|---|---|---|
 | Common | 50 | 1 pt | ⚪ |
-| Uncommon | 30 | 2 pts | 🟢 |
-| Rare | 15 | 5 pts | 🔵 |
-| Epic | 4 | 10 pts | 🟣 |
-| Legendary | 1 | 25 pts | 🟡 |
+| Uncommon | 30 | 4 pts | 🟢 |
+| Rare | 15 | 15 pts | 🔵 |
+| Epic | 4 | 55 pts | 🟣 |
+| Legendary | 1 | 200 pts | 🟡 |
 
 Higher weight = more likely to appear in random claims. Rarity score determines leaderboard ranking.
 

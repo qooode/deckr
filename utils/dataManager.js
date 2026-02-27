@@ -223,10 +223,10 @@ function getLeaderboard() {
 
   const rarityScores = {
     common: 1,
-    uncommon: 2,
-    rare: 5,
-    epic: 10,
-    legendary: 25,
+    uncommon: 4,
+    rare: 15,
+    epic: 55,
+    legendary: 200,
   };
 
   const leaderboard = [];
