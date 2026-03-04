@@ -8,7 +8,20 @@ const PATHS = {
   inventory: path.join(DATA_DIR, 'inventory.json'),
   cooldowns: path.join(DATA_DIR, 'cooldowns.json'),
   trades: path.join(DATA_DIR, 'trades.json'),
+  wallets: path.join(DATA_DIR, 'wallets.json'),
 };
+
+// ---------- Coin Economy ----------
+
+const SELL_PRICES = {
+  common: 10,
+  uncommon: 25,
+  rare: 80,
+  epic: 250,
+  legendary: 800,
+};
+
+const COINFLIP_MAX = 500;
 
 // ---------- Generic Read/Write ----------
 
@@ -355,6 +368,40 @@ function getRandomCardMinRarity(minRarity) {
   return weighted[weighted.length - 1].card;
 }
 
+// ---------- Wallets ----------
+
+function getWallets() {
+  return readJSON(PATHS.wallets)?.users ?? {};
+}
+
+function saveWallets(users) {
+  writeJSON(PATHS.wallets, { users });
+}
+
+function getBalance(userId) {
+  const wallets = getWallets();
+  return wallets[userId]?.balance ?? 0;
+}
+
+function addCoins(userId, username, amount) {
+  const wallets = getWallets();
+  if (!wallets[userId]) {
+    wallets[userId] = { username, balance: 0 };
+  }
+  wallets[userId].username = username;
+  wallets[userId].balance += amount;
+  saveWallets(wallets);
+  return wallets[userId].balance;
+}
+
+function removeCoins(userId, amount) {
+  const wallets = getWallets();
+  if (!wallets[userId] || wallets[userId].balance < amount) return false;
+  wallets[userId].balance -= amount;
+  saveWallets(wallets);
+  return wallets[userId].balance;
+}
+
 // ---------- Export / Import ----------
 
 function exportAll() {
@@ -363,6 +410,7 @@ function exportAll() {
     inventory: readJSON(PATHS.inventory),
     cooldowns: readJSON(PATHS.cooldowns),
     trades: readJSON(PATHS.trades),
+    wallets: readJSON(PATHS.wallets),
   };
 }
 
@@ -384,6 +432,7 @@ function importAll(data) {
   if (data.inventory) writeJSON(PATHS.inventory, data.inventory);
   if (data.cooldowns) writeJSON(PATHS.cooldowns, data.cooldowns);
   if (data.trades) writeJSON(PATHS.trades, data.trades);
+  if (data.wallets) writeJSON(PATHS.wallets, data.wallets);
 }
 
 module.exports = {
@@ -394,6 +443,8 @@ module.exports = {
   canClaim, recordClaim,
   getTrades, addTrade, findTradeById, removeTrade, generateTradeId,
   getLeaderboard, getRandomCard, getRandomCards, getRandomCardMinRarity,
+  getWallets, saveWallets, getBalance, addCoins, removeCoins,
+  SELL_PRICES, COINFLIP_MAX,
   exportAll, importAll,
   PATHS,
 };
