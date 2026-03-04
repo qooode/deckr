@@ -71,7 +71,7 @@ module.exports = {
 
             return new EmbedBuilder()
                 .setDescription(
-                    `### 📦 ${interaction.user.username} opened a Crate!\n` +
+                    `### 📦 ${interaction.user.username} dropped a Crate!\n` +
                     `Closes in **${formatTime(remaining)}** — join now.\n\n` +
                     `**${names.length}** joined\n${list}\n`
                 )
@@ -88,7 +88,7 @@ module.exports = {
         );
 
         await interaction.reply({
-            content: `📦 You opened a crate for **${CRATE_COST}** coins! Balance: **${newBalance.toLocaleString()}**`,
+            content: `📦 You dropped a crate for **${CRATE_COST}** coins! Balance: **${newBalance.toLocaleString()}**`,
             ephemeral: true,
         });
 
