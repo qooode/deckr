@@ -4,10 +4,10 @@ const dm = require('../../utils/dataManager');
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('coinflip')
-        .setDescription('Double or nothing — flip a coin!')
+        .setDescription('Flip a coin — double your coins or lose them!')
         .addIntegerOption(opt =>
             opt.setName('amount')
-                .setDescription('How many coins to bet')
+                .setDescription('How many coins to risk')
                 .setRequired(true)
                 .setMinValue(1)
                 .setMaxValue(dm.COINFLIP_MAX)),
@@ -31,7 +31,7 @@ module.exports = {
             const embed = new EmbedBuilder()
                 .setDescription(
                     `### 🪙 Coinflip\n` +
-                    `You bet **${bet.toLocaleString()}** and **won!** 🎉\n\n` +
+                    `You risked **${bet.toLocaleString()}** and **won!** 🎉\n\n` +
                     `💰 **+${bet.toLocaleString()}** · Balance: **${newBalance.toLocaleString()}**`
                 )
                 .setColor(0x4caf50)
@@ -46,7 +46,7 @@ module.exports = {
             const embed = new EmbedBuilder()
                 .setDescription(
                     `### 🪙 Coinflip\n` +
-                    `You bet **${bet.toLocaleString()}** and **lost.** 💀\n\n` +
+                    `You risked **${bet.toLocaleString()}** and **lost.** 💀\n\n` +
                     `💸 **-${bet.toLocaleString()}** · Balance: **${newBalance.toLocaleString()}**`
                 )
                 .setColor(0xe74c3c)
