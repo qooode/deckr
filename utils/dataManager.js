@@ -9,6 +9,7 @@ const PATHS = {
   cooldowns: path.join(DATA_DIR, 'cooldowns.json'),
   trades: path.join(DATA_DIR, 'trades.json'),
   wallets: path.join(DATA_DIR, 'wallets.json'),
+  auctions: path.join(DATA_DIR, 'auctions.json'),
 };
 
 // ---------- Coin Economy ----------
@@ -402,6 +403,47 @@ function removeCoins(userId, amount) {
   return wallets[userId].balance;
 }
 
+// ---------- Auctions ----------
+
+const AUCTION_DEFAULTS = {
+  minDurationMs: 60 * 1000,       // 1 minute minimum
+  maxDurationMs: 5 * 60 * 1000,   // 5 minutes maximum
+  defaultDurationMs: 2 * 60 * 1000, // 2 minutes default
+  bidIncrement: 10,                // minimum raise
+};
+
+// In-memory map for active auction state (timers, live bids)
+const activeAuctions = new Map();
+
+function getAuctions() {
+  return readJSON(PATHS.auctions)?.auctions ?? [];
+}
+
+function saveAuctions(auctions) {
+  writeJSON(PATHS.auctions, { auctions });
+}
+
+function addAuction(auction) {
+  const auctions = getAuctions();
+  auctions.push(auction);
+  saveAuctions(auctions);
+  return auction;
+}
+
+function findAuctionById(auctionId) {
+  return getAuctions().find(a => a.id === auctionId) ?? null;
+}
+
+function removeAuction(auctionId) {
+  let auctions = getAuctions();
+  auctions = auctions.filter(a => a.id !== auctionId);
+  saveAuctions(auctions);
+}
+
+function generateAuctionId() {
+  return `auction_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+}
+
 // ---------- Export / Import ----------
 
 function exportAll() {
@@ -411,6 +453,7 @@ function exportAll() {
     cooldowns: readJSON(PATHS.cooldowns),
     trades: readJSON(PATHS.trades),
     wallets: readJSON(PATHS.wallets),
+    auctions: readJSON(PATHS.auctions),
   };
 }
 
@@ -433,6 +476,7 @@ function importAll(data) {
   if (data.cooldowns) writeJSON(PATHS.cooldowns, data.cooldowns);
   if (data.trades) writeJSON(PATHS.trades, data.trades);
   if (data.wallets) writeJSON(PATHS.wallets, data.wallets);
+  if (data.auctions) writeJSON(PATHS.auctions, data.auctions);
 }
 
 module.exports = {
@@ -444,6 +488,8 @@ module.exports = {
   getTrades, addTrade, findTradeById, removeTrade, generateTradeId,
   getLeaderboard, getRandomCard, getRandomCards, getRandomCardMinRarity,
   getWallets, saveWallets, getBalance, addCoins, removeCoins,
+  getAuctions, saveAuctions, addAuction, findAuctionById, removeAuction, generateAuctionId,
+  activeAuctions, AUCTION_DEFAULTS,
   SELL_PRICES, COINFLIP_MAX,
   exportAll, importAll,
   PATHS,
