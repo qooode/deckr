@@ -69,13 +69,21 @@ module.exports = {
         // ---------- Sell Duplicates ----------
         if (cardOption === 'duplicates') {
             const allCards = dm.getCards();
-            const userCards = dm.getUserInventory(interaction.user.id);
+            const inventory = dm.getInventory();
+            const userData = inventory[interaction.user.id];
+
+            if (!userData || !userData.cards || userData.cards.length === 0) {
+                return interaction.reply({
+                    content: '📦 You have no cards to sell!',
+                    ephemeral: true,
+                });
+            }
 
             let totalSold = 0;
             let totalCoins = 0;
             const soldLines = [];
 
-            for (const entry of userCards) {
+            for (const entry of userData.cards) {
                 if (entry.quantity <= 1) continue;
                 const card = allCards.find(c => c.id === entry.cardId);
                 if (!card) continue;
@@ -84,10 +92,8 @@ module.exports = {
                 const price = dm.SELL_PRICES[card.rarity] ?? 0;
                 const earned = price * extras;
 
-                // Remove extras one by one
-                for (let i = 0; i < extras; i++) {
-                    dm.removeCardFromUser(interaction.user.id, card.id);
-                }
+                // Keep exactly 1
+                entry.quantity = 1;
 
                 totalSold += extras;
                 totalCoins += earned;
@@ -102,6 +108,9 @@ module.exports = {
                     ephemeral: true,
                 });
             }
+
+            // Single write
+            dm.saveInventory(inventory);
 
             // Add coins
             const newBalance = dm.addCoins(interaction.user.id, interaction.user.username, totalCoins);
