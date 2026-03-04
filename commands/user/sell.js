@@ -8,7 +8,7 @@ module.exports = {
         .setDescription('Sell cards for coins')
         .addStringOption(opt =>
             opt.setName('card')
-                .setDescription('Card to sell (or type "duplicates" to sell all extras)')
+                .setDescription('Card to sell (or type "extras" to sell all extras)')
                 .setRequired(true)
                 .setAutocomplete(true)),
 
@@ -21,7 +21,7 @@ module.exports = {
         const choices = [];
 
         // Always show the "duplicates" option
-        if ('duplicates'.includes(focused) || focused === '') {
+        if ('extras'.includes(focused) || focused === '') {
             // Count dupes
             let dupeCount = 0;
             let dupeValue = 0;
@@ -37,8 +37,8 @@ module.exports = {
             }
             if (dupeCount > 0) {
                 choices.push({
-                    name: `📦 Sell all duplicates (${dupeCount} cards → ${dupeValue} coins)`,
-                    value: 'duplicates',
+                    name: `📦 Sell all extras (${dupeCount} cards → ${dupeValue} coins)`,
+                    value: 'extras',
                 });
             }
         }
@@ -67,7 +67,7 @@ module.exports = {
         const cardOption = interaction.options.getString('card');
 
         // ---------- Sell Duplicates ----------
-        if (cardOption === 'duplicates') {
+        if (cardOption === 'extras') {
             const allCards = dm.getCards();
             const inventory = dm.getInventory();
             const userData = inventory[interaction.user.id];
@@ -104,7 +104,7 @@ module.exports = {
 
             if (totalSold === 0) {
                 return interaction.reply({
-                    content: '📦 You have no duplicate cards to sell!',
+                    content: '📦 You have no extra cards to sell!',
                     ephemeral: true,
                 });
             }
@@ -117,7 +117,7 @@ module.exports = {
 
             const embed = new EmbedBuilder()
                 .setDescription(
-                    `### 📦 Sold ${totalSold} duplicates\n\n` +
+                    `### 📦 Sold ${totalSold} extras\n\n` +
                     soldLines.join('\n') +
                     `\n\n💰 **+${totalCoins.toLocaleString()}** coins · Balance: **${newBalance.toLocaleString()}**`
                 )
