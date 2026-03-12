@@ -10,7 +10,7 @@ const JOIN_DURATION_MS = 60 * 1000;       // 1 minute to join
 const MIN_PLAYERS = 3;                     // need at least 3
 const INITIAL_TIMER_S = 8;                // first pass: 8 seconds
 const TIMER_DECREMENT_S = 1;              // shrink 1s per pass
-const MIN_TIMER_S = 3;                    // never below 3s
+const MIN_TIMER_S = 2;                    // never below 2s
 
 function cap(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
 
@@ -22,21 +22,38 @@ function formatTime(ms) {
     return `${sec}s`;
 }
 
-// ——— Build pass buttons (up to 25 players supported) ———
+// ——— Shuffle array in-place (Fisher-Yates) ———
+function shuffle(arr) {
+    for (let i = arr.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    return arr;
+}
+
+// ——— Build pass buttons (shuffled + trap) ———
 function buildPassButtons(dodgeId, holderId, alivePlayers, participants) {
-    const targets = alivePlayers.filter(id => id !== holderId);
+    // Include OTHER players + the holder themselves as a trap
+    const allButtons = alivePlayers.map(id => ({
+        id,
+        isTrap: id === holderId,
+    }));
+
+    // Shuffle so positions change every pass
+    shuffle(allButtons);
+
     const rows = [];
     let currentRow = new ActionRowBuilder();
     let count = 0;
 
-    for (const id of targets) {
+    for (const { id, isTrap } of allButtons) {
         if (count > 0 && count % 5 === 0) {
             rows.push(currentRow);
             currentRow = new ActionRowBuilder();
         }
         currentRow.addComponents(
             new ButtonBuilder()
-                .setCustomId(`${dodgeId}_pass_${id}`)
+                .setCustomId(isTrap ? `${dodgeId}_self_${id}` : `${dodgeId}_pass_${id}`)
                 .setLabel(participants.get(id))
                 .setEmoji('💨')
                 .setStyle(ButtonStyle.Secondary),
@@ -48,20 +65,29 @@ function buildPassButtons(dodgeId, holderId, alivePlayers, participants) {
     return rows.slice(0, 5); // Discord max 5 rows
 }
 
-// ——— Wait for the holder to pass or time out ———
+// ——— Wait for the holder to pass, self-trap, or time out ———
 function waitForPass(msg, holderId, dodgeId, timerMs) {
     return new Promise((resolve) => {
         let resolved = false;
 
         const collector = msg.createMessageComponentCollector({
-            filter: (i) => i.customId.startsWith(`${dodgeId}_pass_`),
+            filter: (i) => i.customId.startsWith(`${dodgeId}_pass_`) || i.customId.startsWith(`${dodgeId}_self_`),
             time: timerMs,
         });
 
         collector.on('collect', async (i) => {
-            // Only the holder can pass
+            // Only the holder can interact
             if (i.user.id !== holderId) {
                 await i.reply({ content: '💨 Not your turn — wait for the card!', ephemeral: true });
+                return;
+            }
+
+            // Trap button — clicked their own name!
+            if (i.customId.startsWith(`${dodgeId}_self_`)) {
+                resolved = true;
+                collector.stop('self');
+                await i.deferUpdate();
+                resolve({ passed: false, selfTrap: true });
                 return;
             }
 
@@ -74,7 +100,7 @@ function waitForPass(msg, holderId, dodgeId, timerMs) {
 
         collector.on('end', () => {
             if (!resolved) {
-                resolve({ passed: false });
+                resolve({ passed: false, selfTrap: false });
             }
         });
     });
@@ -294,7 +320,7 @@ module.exports = {
                     holderId = result.targetId;
                     passCount++;
                 } else {
-                    // ——— TIME'S UP — ELIMINATION ———
+                    // ——— ELIMINATION (timeout or self-trap) ———
                     const elimName = participants.get(holderId);
                     alive.splice(alive.indexOf(holderId), 1);
                     eliminated.push(holderId);
@@ -303,12 +329,13 @@ module.exports = {
                     if (alive.length <= 1) break;
 
                     // Show elimination with suspense
+                    const elimMsg = result.selfTrap
+                        ? `### 💀 ${elimName} clicked their own name!\nInstant knockout! **${alive.length}** players remain...`
+                        : `### 💥 ${elimName} couldn't dodge!\nKnocked out! **${alive.length}** players remain...`;
+
                     const elimEmbed = new EmbedBuilder()
-                        .setDescription(
-                            `### 💥 ${elimName} couldn't dodge!\n` +
-                            `Knocked out! **${alive.length}** players remain...`
-                        )
-                        .setColor(0xed4245);
+                        .setDescription(elimMsg)
+                        .setColor(result.selfTrap ? 0x2b2d31 : 0xed4245);
 
                     await msg.edit({ embeds: [elimEmbed], components: [] }).catch(() => {});
                     await new Promise(r => setTimeout(r, 2500));
