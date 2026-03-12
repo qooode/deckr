@@ -59,7 +59,7 @@ module.exports = {
         const participants = new Map(); // userId → username
 
         // Auto-join the spawner
-        participants.set(interaction.user.id, interaction.user.username);
+        participants.set(interaction.user.id, interaction.user.globalName || interaction.user.username);
 
         const crateId = `crate_${Date.now()}`;
         const endsAt = Date.now() + JOIN_DURATION_MS;
@@ -71,7 +71,7 @@ module.exports = {
 
             return new EmbedBuilder()
                 .setDescription(
-                    `### 📦 ${interaction.user.username} dropped a Crate!\n` +
+                    `### 📦 ${interaction.user.globalName || interaction.user.username} dropped a Crate!\n` +
                     `Closes in **${formatTime(remaining)}** — join now.\n\n` +
                     `**${names.length}** joined\n${list}\n`
                 )
@@ -116,7 +116,7 @@ module.exports = {
             if (participants.has(i.user.id)) {
                 return i.reply({ content: 'You already joined this crate.', ephemeral: true });
             }
-            participants.set(i.user.id, i.user.username);
+            participants.set(i.user.id, i.user.globalName || i.user.username);
             await i.update({ embeds: [buildJoinEmbed()] });
         });
 
@@ -131,7 +131,7 @@ module.exports = {
                     .setDescription(
                         `### 📦 Crate Expired\n` +
                         `Needed at least **${MIN_PLAYERS}** players. Only **${participants.size}** joined.\n` +
-                        `**${CRATE_COST}** coins refunded to ${interaction.user.username}.`
+                        `**${CRATE_COST}** coins refunded to ${interaction.user.globalName || interaction.user.username}.`
                     )
                     .setColor(0x2b2d31);
 

@@ -102,7 +102,7 @@ module.exports = {
             if (participants.has(i.user.id)) {
                 return i.reply({ content: 'You already joined this crate.', ephemeral: true });
             }
-            participants.set(i.user.id, i.user.username);
+            participants.set(i.user.id, i.user.globalName || i.user.username);
             await i.update({ embeds: [buildJoinEmbed()] });
         });
 
