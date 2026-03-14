@@ -8,7 +8,7 @@ const { config } = require('../../utils/config');
 // ——— Config ———
 const JOIN_DURATION_MS = 60 * 1000;       // 1 minute to join
 const MIN_PLAYERS = 3;                     // need at least 3
-const MIN_TIMER_S = 4;                    // never below 4s
+const MIN_TIMER_S = 3;                    // never below 3s
 const MAX_TIMER_S = 9;                    // starting max
 const CHAOS_CHANCE = 0.18;                // ~18% chance of chaos event
 
@@ -81,23 +81,20 @@ const CHAOS_EVENTS = [
     { name: 'SPEED RUSH', description: 'Timer cut in half', effect: 'half_timer' },
     { name: 'GHOST PASS', description: 'One button is a decoy', effect: 'decoy' },
     { name: 'HOT ROUND', description: null, effect: 'multi_pass' },  // description set dynamically
-    { name: 'LOCKOUT', description: 'Can\'t pass back to who gave it to you', effect: 'no_passback' },
 ];
 
 // ——— Build pass buttons ———
 function buildPassButtons(dodgeId, holderId, alivePlayers, participants, opts = {}) {
-    const { hasDecoy, blockedId } = opts;
+    const { hasDecoy } = opts;
 
-    const allButtons = alivePlayers
-        .filter(id => id !== blockedId) // remove blocked passback target
-        .map(id => ({
-            id,
-            isTrap: id === holderId,
-        }));
+    const allButtons = alivePlayers.map(id => ({
+        id,
+        isTrap: id === holderId,
+    }));
 
     // Add decoy button
     if (hasDecoy && alivePlayers.length > 2) {
-        const validTargets = alivePlayers.filter(id => id !== holderId && id !== blockedId);
+        const validTargets = alivePlayers.filter(id => id !== holderId);
         if (validTargets.length > 0) {
             allButtons.push({
                 id: 'decoy',
@@ -340,7 +337,6 @@ module.exports = {
             let roundNum = 0;
             let passCount = 0;
             let lastAction = null;
-            let lastPasserId = null; // for no-passback
             let streak = 0;
 
             // Pick first holder randomly
@@ -377,7 +373,6 @@ module.exports = {
                 let chaosEvent = null;
                 let hasDecoy = false;
                 let multiPassCount = 0;
-                let noPassback = false;
 
                 if (roundNum > 1 && Math.random() < CHAOS_CHANCE) {
                     chaosEvent = CHAOS_EVENTS[Math.floor(Math.random() * CHAOS_EVENTS.length)];
@@ -390,8 +385,6 @@ module.exports = {
                         multiPassCount = randInt(2, Math.min(3, alive.length - 1));
                         const mpFlavor = MULTI_PASS_FLAVOR[Math.floor(Math.random() * MULTI_PASS_FLAVOR.length)];
                         chaosEvent.description = mpFlavor.replace('{count}', multiPassCount);
-                    } else if (chaosEvent.effect === 'no_passback') {
-                        noPassback = true;
                     }
                 }
 
@@ -427,14 +420,13 @@ module.exports = {
 
                         const mpRows = buildPassButtons(dodgeId, holderId, alive, participants, {
                             hasDecoy: false,
-                            blockedId: lastPasserId,
                         });
                         await msg.edit({ embeds: [mpGameEmbed], components: mpRows }).catch(() => {});
 
                         const mpResult = await waitForPass(msg, holderId, dodgeId, mpMs);
 
                         if (mpResult.passed) {
-                            lastPasserId = holderId;
+
                             targetCount.set(mpResult.targetId, (targetCount.get(mpResult.targetId) || 0) + 1);
                             holderId = mpResult.targetId;
                             passCount++;
@@ -444,7 +436,6 @@ module.exports = {
                             alive.splice(alive.indexOf(holderId), 1);
                             eliminated.push(holderId);
                             lastAction = null;
-                            lastPasserId = null;
                             streak = 0;
 
                             if (alive.length <= 1) break;
@@ -477,8 +468,7 @@ module.exports = {
                 const timerMs = timerS * 1000;
                 const deadline = Math.floor((Date.now() + timerMs) / 1000);
 
-                // Determine blocked player (no-passback)
-                const blockedId = (noPassback || alive.length > 2) ? lastPasserId : null;
+
 
                 // Build alive list
                 const aliveList = alive.map(id => {
@@ -522,11 +512,7 @@ module.exports = {
                     chaosText = `\n> ⚠ **${chaosEvent.name}** — ${chaosEvent.description}\n`;
                 }
 
-                // Passback warning
-                let passbackText = '';
-                if (blockedId && participants.has(blockedId) && alive.includes(blockedId)) {
-                    passbackText = `\n*Can't pass back to ${participants.get(blockedId)}*\n`;
-                }
+
 
                 const gameEmbed = new EmbedBuilder()
                     .setDescription(
@@ -535,7 +521,6 @@ module.exports = {
                         actionText +
                         `**${participants.get(holderId)}**, pass the card!\n` +
                         `⏱ <t:${deadline}:R>\n` +
-                        passbackText +
                         streakText +
                         `\n**Alive (${alive.length})**\n${aliveList}` +
                         (elimList ? `\n\nOut: ${elimList}` : '')
@@ -546,7 +531,6 @@ module.exports = {
 
                 const rows = buildPassButtons(dodgeId, holderId, alive, participants, {
                     hasDecoy,
-                    blockedId,
                 });
                 await msg.edit({ embeds: [gameEmbed], components: rows }).catch(() => {});
 
@@ -562,7 +546,7 @@ module.exports = {
                         nearMiss,
                         nearMissTime,
                     };
-                    lastPasserId = holderId;
+
                     targetCount.set(result.targetId, (targetCount.get(result.targetId) || 0) + 1);
                     holderId = result.targetId;
                     passCount++;
@@ -572,7 +556,6 @@ module.exports = {
                     alive.splice(alive.indexOf(holderId), 1);
                     eliminated.push(holderId);
                     lastAction = null;
-                    lastPasserId = null;
                     streak = 0;
 
                     if (alive.length <= 1) break;
