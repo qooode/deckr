@@ -10,7 +10,7 @@ const JOIN_DURATION_MS = 60 * 1000;       // 1 minute to join
 const MIN_PLAYERS = 3;                     // need at least 3
 const INITIAL_TIMER_S = 8;                // first pass: 8s
 const TIMER_DECREMENT_S = 1;              // shrink 1s per pass
-const MIN_TIMER_S = 2;                    // never below 2s
+const MIN_TIMER_S = 4;                    // never below 4s
 const CHAOS_CHANCE = 0.15;                // 15% chance of chaos event each round
 
 function cap(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
@@ -37,23 +37,30 @@ function shuffle(arr) {
 // Random flavor text for passes
 const PASS_FLAVOR = [
     '{from} → {to}',
-    '{from} passes to {to}',
-    '{from} throws it to {to}',
-    '{from} slides it to {to}',
-    '{from} flicks it at {to}',
+    '{from} didn\'t even think, just threw it at {to}',
+    '{from} said "nah" and sent it to {to}',
+    '{from} chose violence — {to} has it now',
+    '{from} woke up and chose {to}',
+    '{from} really just targeted {to} like that',
+    '{from} threw it at {to} with zero hesitation',
+    '{from} is NOT holding that — {to}\'s problem now',
 ];
 
 // Elimination messages
 const ELIM_FLAVOR = [
-    '### 💀 {name} froze up\nToo slow — out.',
-    '### 💀 {name} didn\'t make it\nKnocked out.',
-    '### 💀 {name} choked\nEliminated.',
-    '### 💀 {name} ran out of time\nGone.',
+    '### 💀 {name} froze\nJust stood there. Couldn\'t be saved.',
+    '### 💀 {name} is OUT\nAfk diff honestly.',
+    '### 💀 {name} choked\nHad all that time and did nothing.',
+    '### 💀 {name} timed out\nWere they even playing?',
+    '### 💀 {name} is gone\nNo shot they just let that happen.',
+    '### 💀 {name} didn\'t dodge\nIt\'s literally in the name.',
 ];
 
 const SELF_TRAP_FLAVOR = [
-    '### 💀 {name} clicked their own name\nSelf-elimination.',
-    '### 💀 {name} played themselves\nInstant out.',
+    '### 💀 {name} clicked their own name\nYou cannot make this up.',
+    '### 💀 {name} passed it to... themselves\nBro.',
+    '### 💀 {name} eliminated themselves\nEveryone else just watched.',
+    '### 💀 {name} really just did that\nSelf report of the century.',
 ];
 
 const CHAOS_EVENTS = [
