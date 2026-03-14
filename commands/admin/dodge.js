@@ -8,10 +8,9 @@ const { config } = require('../../utils/config');
 // ——— Config ———
 const JOIN_DURATION_MS = 60 * 1000;       // 1 minute to join
 const MIN_PLAYERS = 3;                     // need at least 3
-const INITIAL_TIMER_S = 8;                // first pass: 8s
-const TIMER_DECREMENT_S = 1;              // shrink 1s per pass
 const MIN_TIMER_S = 4;                    // never below 4s
-const CHAOS_CHANCE = 0.15;                // 15% chance of chaos event each round
+const MAX_TIMER_S = 9;                    // starting max
+const CHAOS_CHANCE = 0.18;                // ~18% chance of chaos event
 
 function cap(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
 
@@ -23,6 +22,11 @@ function formatTime(ms) {
     return `${sec}s`;
 }
 
+// Random int between min and max (inclusive)
+function randInt(min, max) {
+    return Math.floor(Math.random() * (max - min + 1)) + min;
+}
+
 // Shuffle array in-place (Fisher-Yates)
 function shuffle(arr) {
     for (let i = arr.length - 1; i > 0; i--) {
@@ -32,9 +36,8 @@ function shuffle(arr) {
     return arr;
 }
 
+// ——— Flavor text ———
 
-
-// Random flavor text for passes
 const PASS_FLAVOR = [
     '{from} → {to}',
     '{from} didn\'t even think, just threw it at {to}',
@@ -46,7 +49,12 @@ const PASS_FLAVOR = [
     '{from} is NOT holding that — {to}\'s problem now',
 ];
 
-// Elimination messages
+const NEAR_MISS_FLAVOR = [
+    '{name} passed with **{time}** left. Barely alive.',
+    '{name} cut it close — **{time}** on the clock.',
+    '**{time}** left when {name} passed. That was tight.',
+];
+
 const ELIM_FLAVOR = [
     '### 💀 {name} froze\nJust stood there. Couldn\'t be saved.',
     '### 💀 {name} is OUT\nAfk diff honestly.',
@@ -63,27 +71,41 @@ const SELF_TRAP_FLAVOR = [
     '### 💀 {name} really just did that\nSelf report of the century.',
 ];
 
+const MULTI_PASS_FLAVOR = [
+    'Card needs to be passed **{count} times** before someone can die',
+    'Hot round — **{count} passes** required this time',
+    'Keep it moving — **{count} passes** before anyone\'s safe',
+];
+
 const CHAOS_EVENTS = [
     { name: 'SPEED RUSH', description: 'Timer cut in half', effect: 'half_timer' },
-    { name: 'SHUFFLE', description: 'Buttons scrambled', effect: 'shuffle' },
     { name: 'GHOST PASS', description: 'One button is a decoy', effect: 'decoy' },
-    { name: 'SNIPER ROUND', description: 'Only 3 seconds', effect: 'sniper' },
+    { name: 'HOT ROUND', description: null, effect: 'multi_pass' },  // description set dynamically
+    { name: 'LOCKOUT', description: 'Can\'t pass back to who gave it to you', effect: 'no_passback' },
 ];
 
 // ——— Build pass buttons ———
-function buildPassButtons(dodgeId, holderId, alivePlayers, participants, hasDecoy) {
-    const allButtons = alivePlayers.map(id => ({
-        id,
-        isTrap: id === holderId,
-    }));
+function buildPassButtons(dodgeId, holderId, alivePlayers, participants, opts = {}) {
+    const { hasDecoy, blockedId } = opts;
 
-    // If decoy chaos event, add a fake button
+    const allButtons = alivePlayers
+        .filter(id => id !== blockedId) // remove blocked passback target
+        .map(id => ({
+            id,
+            isTrap: id === holderId,
+        }));
+
+    // Add decoy button
     if (hasDecoy && alivePlayers.length > 2) {
-        allButtons.push({
-            id: 'decoy',
-            isTrap: false,
-            isDecoy: true,
-        });
+        const validTargets = alivePlayers.filter(id => id !== holderId && id !== blockedId);
+        if (validTargets.length > 0) {
+            allButtons.push({
+                id: 'decoy',
+                isTrap: false,
+                isDecoy: true,
+                fakeName: participants.get(validTargets[Math.floor(Math.random() * validTargets.length)]),
+            });
+        }
     }
 
     shuffle(allButtons);
@@ -100,10 +122,7 @@ function buildPassButtons(dodgeId, holderId, alivePlayers, participants, hasDeco
 
         let label, customId;
         if (btn.isDecoy) {
-            // Decoy: pick a random alive player's name to show (but it does nothing useful)
-            const randomAlive = alivePlayers.filter(id => id !== holderId);
-            const decoyName = participants.get(randomAlive[Math.floor(Math.random() * randomAlive.length)]);
-            label = decoyName;
+            label = btn.fakeName;
             customId = `${dodgeId}_decoy_${Date.now()}`;
         } else if (btn.isTrap) {
             label = participants.get(btn.id);
@@ -123,13 +142,14 @@ function buildPassButtons(dodgeId, holderId, alivePlayers, participants, hasDeco
     }
 
     if (count > 0) rows.push(currentRow);
-    return rows.slice(0, 5); // Discord max 5 rows
+    return rows.slice(0, 5);
 }
 
 // ——— Wait for the holder to pass, self-trap, or time out ———
 function waitForPass(msg, holderId, dodgeId, timerMs) {
     return new Promise((resolve) => {
         let resolved = false;
+        const startTime = Date.now();
 
         const collector = msg.createMessageComponentCollector({
             filter: (i) =>
@@ -140,39 +160,35 @@ function waitForPass(msg, holderId, dodgeId, timerMs) {
         });
 
         collector.on('collect', async (i) => {
-            // ALWAYS defer first — this is critical to avoid Discord timeouts
             await i.deferUpdate().catch(() => {});
 
-            // Only the holder can interact
             if (i.user.id !== holderId) {
                 await i.followUp({ content: 'Not your turn — wait for the card.', ephemeral: true }).catch(() => {});
                 return;
             }
 
-            // Decoy button — does nothing, wastes time
             if (i.customId.startsWith(`${dodgeId}_decoy_`)) {
                 await i.followUp({ content: 'Decoy — that did nothing. Pick again, quick.', ephemeral: true }).catch(() => {});
                 return;
             }
 
-            // Trap button — clicked their own name!
             if (i.customId.startsWith(`${dodgeId}_self_`)) {
                 resolved = true;
                 collector.stop('self');
-                resolve({ passed: false, selfTrap: true });
+                resolve({ passed: false, selfTrap: true, timeLeft: timerMs - (Date.now() - startTime) });
                 return;
             }
 
-            // Valid pass
             resolved = true;
             const targetId = i.customId.replace(`${dodgeId}_pass_`, '');
+            const timeLeft = timerMs - (Date.now() - startTime);
             collector.stop('passed');
-            resolve({ passed: true, targetId });
+            resolve({ passed: true, targetId, timeLeft });
         });
 
         collector.on('end', () => {
             if (!resolved) {
-                resolve({ passed: false, selfTrap: false });
+                resolve({ passed: false, selfTrap: false, timeLeft: 0 });
             }
         });
     });
@@ -236,7 +252,7 @@ module.exports = {
         //  PHASE 1 — JOIN
         // ══════════════════════════════════════════
 
-        const participants = new Map(); // userId → display name
+        const participants = new Map();
         const dodgeId = `dodge_${Date.now()}`;
         const endsAt = Date.now() + JOIN_DURATION_MS;
 
@@ -250,21 +266,20 @@ module.exports = {
             return new EmbedBuilder()
                 .setDescription(
                     `### 💨 Dodge — ${card.name}\n` +
-                    `${emoji} ${cap(card.rarity)} card up for grabs!\n\n` +
+                    `${emoji} ${cap(card.rarity)} card up for grabs\n\n` +
                     `Pass the card or get **knocked out**.\nLast player standing wins it.\n\n` +
                     `Closes in **${formatTime(remaining)}** · Need **${MIN_PLAYERS}+** players\n\n` +
                     `**${names.length}** joined\n${list}`
                 )
                 .setThumbnail(card.imageUrl)
                 .setColor(colorInt)
-                .setFooter({ text: 'Join now — once it starts, there\'s no escape!' });
+                .setFooter({ text: 'Join now — once it starts, no way out' });
         }
 
         const joinRow = new ActionRowBuilder().addComponents(
             new ButtonBuilder()
                 .setCustomId(`${dodgeId}_join`)
                 .setLabel('Join')
-                .setEmoji('💨')
                 .setStyle(ButtonStyle.Secondary),
         );
 
@@ -273,7 +288,6 @@ module.exports = {
             components: [joinRow],
         });
 
-        // Live countdown — only update every 15s to avoid rate limits
         const countdownInterval = setInterval(async () => {
             if (endsAt - Date.now() <= 0) {
                 clearInterval(countdownInterval);
@@ -288,9 +302,8 @@ module.exports = {
         });
 
         joinCollector.on('collect', async (i) => {
-            // Defer FIRST to avoid timeout
             if (participants.has(i.user.id)) {
-                await i.reply({ content: 'You already joined!', ephemeral: true });
+                await i.reply({ content: 'You already joined.', ephemeral: true });
                 return;
             }
             participants.set(i.user.id, i.user.globalName || i.user.username);
@@ -321,9 +334,14 @@ module.exports = {
 
             const alive = [...participants.keys()];
             const eliminated = [];
+            const targetCount = new Map(); // track how many times each player gets targeted
+            alive.forEach(id => targetCount.set(id, 0));
+
+            let roundNum = 0;
             let passCount = 0;
             let lastAction = null;
-            let streak = 0; // consecutive passes without elimination
+            let lastPasserId = null; // for no-passback
+            let streak = 0;
 
             // Pick first holder randomly
             let holderId = alive[Math.floor(Math.random() * alive.length)];
@@ -331,18 +349,16 @@ module.exports = {
             // Delete join message, send fresh game message
             await msg.delete().catch(() => {});
 
-            // Dramatic start — ping everyone then clean up
             const mentions = alive.map(id => `<@${id}>`).join(' ');
             msg = await channel.send({ content: `${mentions}\n### 💨 Dodge is starting...` });
             await msg.edit({ content: '### 💨 Dodge is starting...' }).catch(() => {});
             await new Promise(r => setTimeout(r, 1500));
 
-            // Announce first holder
             const startEmbed = new EmbedBuilder()
                 .setDescription(
                     `### 💨 The card goes to...\n` +
-                    `# ${participants.get(holderId)}!\n` +
-                    `Pass it quick!`
+                    `# ${participants.get(holderId)}\n` +
+                    `Pass it quick`
                 )
                 .setColor(0xfee75c);
             await msg.edit({ content: '', embeds: [startEmbed], components: [] }).catch(() => {});
@@ -350,31 +366,126 @@ module.exports = {
 
             // ——— GAME LOOP ———
             while (alive.length > 1) {
-                let timerS = Math.max(MIN_TIMER_S, INITIAL_TIMER_S - passCount * TIMER_DECREMENT_S);
+                roundNum++;
+
+                // Timer: random within a shrinking window
+                const maxT = Math.max(MIN_TIMER_S, MAX_TIMER_S - Math.floor(roundNum / 2));
+                const minT = MIN_TIMER_S;
+                let timerS = randInt(minT, maxT);
 
                 // Chaos event check
                 let chaosEvent = null;
                 let hasDecoy = false;
-                if (passCount > 0 && Math.random() < CHAOS_CHANCE) {
+                let multiPassCount = 0;
+                let noPassback = false;
+
+                if (roundNum > 1 && Math.random() < CHAOS_CHANCE) {
                     chaosEvent = CHAOS_EVENTS[Math.floor(Math.random() * CHAOS_EVENTS.length)];
+
                     if (chaosEvent.effect === 'half_timer') {
                         timerS = Math.max(MIN_TIMER_S, Math.ceil(timerS / 2));
-                    } else if (chaosEvent.effect === 'sniper') {
-                        timerS = 3;
                     } else if (chaosEvent.effect === 'decoy') {
                         hasDecoy = true;
+                    } else if (chaosEvent.effect === 'multi_pass') {
+                        multiPassCount = randInt(2, Math.min(3, alive.length - 1));
+                        const mpFlavor = MULTI_PASS_FLAVOR[Math.floor(Math.random() * MULTI_PASS_FLAVOR.length)];
+                        chaosEvent.description = mpFlavor.replace('{count}', multiPassCount);
+                    } else if (chaosEvent.effect === 'no_passback') {
+                        noPassback = true;
                     }
-                    // 'shuffle' just means extra scrambled — handled by normal shuffle
                 }
+
+                // Multi-pass: card bounces through multiple players before the "live" round
+                if (multiPassCount > 0) {
+                    const chaosText = `> ⚠ **${chaosEvent.name}** — ${chaosEvent.description}\n`;
+                    const mpEmbed = new EmbedBuilder()
+                        .setDescription(
+                            `### 💨 Dodge — ${card.name}\n` +
+                            chaosText +
+                            `\nStarting with **${participants.get(holderId)}**`
+                        )
+                        .setColor(0xfee75c)
+                        .setThumbnail(card.imageUrl);
+                    await msg.edit({ embeds: [mpEmbed], components: [] }).catch(() => {});
+                    await new Promise(r => setTimeout(r, 1200));
+
+                    for (let mp = 0; mp < multiPassCount && alive.length > 1; mp++) {
+                        const mpTimer = Math.max(MIN_TIMER_S, timerS + 1); // slightly more generous in multi-pass
+                        const mpMs = mpTimer * 1000;
+                        const mpDeadline = Math.floor((Date.now() + mpMs) / 1000);
+
+                        const mpGameEmbed = new EmbedBuilder()
+                            .setDescription(
+                                `### 💨 Dodge — ${card.name}\n` +
+                                chaosText +
+                                `**${participants.get(holderId)}**, pass it! (${mp + 1}/${multiPassCount})\n` +
+                                `⏱ <t:${mpDeadline}:R>`
+                            )
+                            .setColor(0xfee75c)
+                            .setThumbnail(card.imageUrl)
+                            .setFooter({ text: `Hot round — pass ${mp + 1} of ${multiPassCount}` });
+
+                        const mpRows = buildPassButtons(dodgeId, holderId, alive, participants, {
+                            hasDecoy: false,
+                            blockedId: lastPasserId,
+                        });
+                        await msg.edit({ embeds: [mpGameEmbed], components: mpRows }).catch(() => {});
+
+                        const mpResult = await waitForPass(msg, holderId, dodgeId, mpMs);
+
+                        if (mpResult.passed) {
+                            lastPasserId = holderId;
+                            targetCount.set(mpResult.targetId, (targetCount.get(mpResult.targetId) || 0) + 1);
+                            holderId = mpResult.targetId;
+                            passCount++;
+                        } else {
+                            // Died during multi-pass
+                            const elimName = participants.get(holderId);
+                            alive.splice(alive.indexOf(holderId), 1);
+                            eliminated.push(holderId);
+                            lastAction = null;
+                            lastPasserId = null;
+                            streak = 0;
+
+                            if (alive.length <= 1) break;
+
+                            const elimFlavors = mpResult.selfTrap ? SELF_TRAP_FLAVOR : ELIM_FLAVOR;
+                            const elimText = elimFlavors[Math.floor(Math.random() * elimFlavors.length)]
+                                .replace('{name}', elimName);
+
+                            holderId = alive[Math.floor(Math.random() * alive.length)];
+
+                            const elimEmbed = new EmbedBuilder()
+                                .setDescription(
+                                    elimText + `\n**${alive.length}** remain\n\n` +
+                                    `### Card goes to **${participants.get(holderId)}**`
+                                )
+                                .setColor(mpResult.selfTrap ? 0x2b2d31 : 0xed4245);
+                            await msg.edit({ embeds: [elimEmbed], components: [] }).catch(() => {});
+                            await new Promise(r => setTimeout(r, 2000));
+                            break; // exit multi-pass, continue to next round
+                        }
+                    }
+
+                    if (alive.length <= 1) break;
+                    // After multi-pass completes without death, continue to normal round
+                    chaosEvent = null; // don't show chaos banner again
+                }
+
+                if (alive.length <= 1) break;
 
                 const timerMs = timerS * 1000;
                 const deadline = Math.floor((Date.now() + timerMs) / 1000);
 
+                // Determine blocked player (no-passback)
+                const blockedId = (noPassback || alive.length > 2) ? lastPasserId : null;
 
-                // Build alive list with holder highlighted
+                // Build alive list
                 const aliveList = alive.map(id => {
-                    if (id === holderId) return `▸ **${participants.get(id)}** ← HAS IT`;
-                    return `╰ ${participants.get(id)}`;
+                    const hits = targetCount.get(id) || 0;
+                    const targetTag = hits >= 3 ? ` (targeted ${hits}x)` : '';
+                    if (id === holderId) return `▸ **${participants.get(id)}** ← HAS IT${targetTag}`;
+                    return `╰ ${participants.get(id)}${targetTag}`;
                 }).join('\n');
 
                 const elimList = eliminated.length > 0
@@ -387,10 +498,19 @@ module.exports = {
                     const flavor = PASS_FLAVOR[Math.floor(Math.random() * PASS_FLAVOR.length)];
                     actionText = flavor
                         .replace('{from}', participants.get(lastAction.from))
-                        .replace('{to}', participants.get(lastAction.to)) + '\n\n';
+                        .replace('{to}', participants.get(lastAction.to)) + '\n';
+
+                    // Near miss callout
+                    if (lastAction.nearMiss) {
+                        const nmFlavor = NEAR_MISS_FLAVOR[Math.floor(Math.random() * NEAR_MISS_FLAVOR.length)];
+                        actionText += nmFlavor
+                            .replace('{name}', participants.get(lastAction.from))
+                            .replace('{time}', lastAction.nearMissTime) + '\n';
+                    }
+                    actionText += '\n';
                 }
 
-                // Streak counter
+                // Streak
                 let streakText = '';
                 if (streak >= 3) {
                     streakText = `\n**${streak} passes** in a row — someone's going down soon\n`;
@@ -402,6 +522,12 @@ module.exports = {
                     chaosText = `\n> ⚠ **${chaosEvent.name}** — ${chaosEvent.description}\n`;
                 }
 
+                // Passback warning
+                let passbackText = '';
+                if (blockedId && participants.has(blockedId) && alive.includes(blockedId)) {
+                    passbackText = `\n*Can't pass back to ${participants.get(blockedId)}*\n`;
+                }
+
                 const gameEmbed = new EmbedBuilder()
                     .setDescription(
                         `### 💨 Dodge — ${card.name}\n` +
@@ -409,46 +535,55 @@ module.exports = {
                         actionText +
                         `**${participants.get(holderId)}**, pass the card!\n` +
                         `⏱ <t:${deadline}:R>\n` +
+                        passbackText +
                         streakText +
                         `\n**Alive (${alive.length})**\n${aliveList}` +
                         (elimList ? `\n\nOut: ${elimList}` : '')
                     )
                     .setThumbnail(card.imageUrl)
-                    .setColor(timerS <= 3 ? 0xed4245 : 0xfee75c)
-                    .setFooter({ text: `Pass #${passCount + 1} · ${timerS}s` });
+                    .setColor(timerS <= 4 ? 0xed4245 : 0xfee75c)
+                    .setFooter({ text: `Round ${roundNum} · ${timerS}s` });
 
-                const rows = buildPassButtons(dodgeId, holderId, alive, participants, hasDecoy);
+                const rows = buildPassButtons(dodgeId, holderId, alive, participants, {
+                    hasDecoy,
+                    blockedId,
+                });
                 await msg.edit({ embeds: [gameEmbed], components: rows }).catch(() => {});
 
-                // Wait for pass or timeout
                 const result = await waitForPass(msg, holderId, dodgeId, timerMs);
 
                 if (result.passed) {
-                    // ——— SUCCESSFUL PASS ———
-                    lastAction = { from: holderId, to: result.targetId };
+                    const nearMiss = result.timeLeft < 1500; // less than 1.5s left
+                    const nearMissTime = nearMiss ? `${(result.timeLeft / 1000).toFixed(1)}s` : null;
+
+                    lastAction = {
+                        from: holderId,
+                        to: result.targetId,
+                        nearMiss,
+                        nearMissTime,
+                    };
+                    lastPasserId = holderId;
+                    targetCount.set(result.targetId, (targetCount.get(result.targetId) || 0) + 1);
                     holderId = result.targetId;
                     passCount++;
                     streak++;
                 } else {
-                    // ——— ELIMINATION (timeout or self-trap) ———
                     const elimName = participants.get(holderId);
                     alive.splice(alive.indexOf(holderId), 1);
                     eliminated.push(holderId);
                     lastAction = null;
+                    lastPasserId = null;
                     streak = 0;
 
                     if (alive.length <= 1) break;
 
-                    // Show elimination — combined with next holder announcement to save an edit
                     const elimFlavors = result.selfTrap ? SELF_TRAP_FLAVOR : ELIM_FLAVOR;
                     const elimText = elimFlavors[Math.floor(Math.random() * elimFlavors.length)]
                         .replace('{name}', elimName);
 
-                    // Random new holder
                     holderId = alive[Math.floor(Math.random() * alive.length)];
                     passCount++;
 
-                    // Single combined embed: elimination + next holder
                     const elimEmbed = new EmbedBuilder()
                         .setDescription(
                             elimText + `\n**${alive.length}** remain\n\n` +
@@ -469,14 +604,20 @@ module.exports = {
             const winnerName = participants.get(winnerId);
             dm.addCardToUser(winnerId, winnerName, card.id);
 
-            // Suspense
             const suspenseEmbed = new EmbedBuilder()
                 .setDescription(`### Last one standing...`)
                 .setColor(0x2b2d31);
             await msg.edit({ embeds: [suspenseEmbed], components: [] }).catch(() => {});
             await new Promise(r => setTimeout(r, 2000));
 
-            // Elimination order for the recap
+            // Find most targeted player
+            const mostTargeted = [...targetCount.entries()]
+                .filter(([id]) => participants.has(id))
+                .sort((a, b) => b[1] - a[1])[0];
+            const targetedLine = mostTargeted && mostTargeted[1] >= 3
+                ? `\nMost targeted: **${participants.get(mostTargeted[0])}** (${mostTargeted[1]}x)\n`
+                : '';
+
             const elimOrder = eliminated.map((id, i) => {
                 const place = eliminated.length - i + 1;
                 return `${place}. ~~${participants.get(id)}~~`;
@@ -489,7 +630,8 @@ module.exports = {
                     `**Final standings**\n` +
                     `1. **${winnerName}**\n` +
                     elimOrder.reverse().join('\n') +
-                    `\n\n_${passCount} passes · ${eliminated.length} eliminated_`
+                    targetedLine +
+                    `\n_${roundNum} rounds · ${passCount} passes · ${eliminated.length} eliminated_`
                 )
                 .setImage(card.imageUrl)
                 .setColor(0x4caf50)
