@@ -8,12 +8,10 @@ const { config } = require('../../utils/config');
 // ——— Config ———
 const JOIN_DURATION_MS = 60 * 1000;
 const MIN_PLAYERS = 3;
-const BASE_REACT_MS = 15000;        // base reaction window (15s — gotta read the prompt)
-const MIN_REACT_MS = 6000;          // minimum reaction window (6s)
-const CHAOS_CHANCE = 0.22;          // ~22% chance of chaos per round
+const TURN_TIMEOUT_MS = 20_000;       // 20s per turn — generous
+const CHAOS_CHANCE = 0.20;
 
 function cap(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
-function randInt(min, max) { return Math.floor(Math.random() * (max - min + 1)) + min; }
 function pick(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
 function shuffle(arr) {
     for (let i = arr.length - 1; i > 0; i--) {
@@ -22,7 +20,6 @@ function shuffle(arr) {
     }
     return arr;
 }
-
 function formatTime(ms) {
     const totalSec = Math.ceil(ms / 1000);
     const min = Math.floor(totalSec / 60);
@@ -32,327 +29,223 @@ function formatTime(ms) {
 }
 
 // ═══════════════════════════════════════════
-//  COMPOUND V SIDE EFFECTS — each round picks one
-//  - prompt = what the embed says is happening
-//  - correct = the ONE button that saves you
-//  - wrong = the other buttons (decoys)
-//  - deathLines = what happens if you fail (Homelander-energy)
+//  SYRINGE LABELS (shuffled each rack)
 // ═══════════════════════════════════════════
 
-const SIDE_EFFECTS = [
-    {
-        prompt: '### 💉 Your skin starts turning translucent\nYour organs are visible. Everyone is staring. The compound is destabilizing.',
-        correct: { label: 'Stabilize', emoji: '💊' },
-        wrong: [
-            { label: 'Scratch It Off', emoji: '🩸' },
-            { label: 'Flex Through It', emoji: '💪' },
-            { label: 'Ignore It', emoji: '😐' },
-        ],
-        deathLines: [
-            '### 💀 {name}\'s organs literally fell out\nThey tried to hold them in. They couldn\'t.',
-            '### 💀 {name} popped\nOne minute they were there, next — modern art on the walls.',
-            '### 💀 {name} became see-through permanently\nThen the structural integrity failed. Wet crunch.',
-        ],
-    },
-    {
-        prompt: '### 💉 Your eyes are glowing red\nThe heat is building behind your retinas. You can feel the blast coming. This is NOT good.',
-        correct: { label: 'Close Your Eyes', emoji: '🫣' },
-        wrong: [
-            { label: 'Stare Into It', emoji: '👀' },
-            { label: 'Laser The Ceiling', emoji: '🔴' },
-            { label: 'Scream', emoji: '😱' },
-        ],
-        deathLines: [
-            '### 💀 {name}\'s head did the Homelander special\nTwo red beams. Clean through. The back of their skull is gone.',
-            '### 💀 {name} lasered themselves in half\nIt wasn\'t even dramatic — just a quiet sizzle, then two pieces.',
-            '### 💀 {name}\'s eyes exploded outward\nLike microwaving an egg. Nobody needed to see that.',
-        ],
-    },
-    {
-        prompt: '### 💉 You\'re growing. Fast.\nYour bones are stretching. The ceiling is getting closer. You can hear your skeleton cracking.',
-        correct: { label: 'Curl Into A Ball', emoji: '🫧' },
-        wrong: [
-            { label: 'Stand Tall', emoji: '🧍' },
-            { label: 'Break Through Roof', emoji: '🏗️' },
-            { label: 'Enjoy The View', emoji: '🌆' },
-        ],
-        deathLines: [
-            '### 💀 {name} outgrew the room\nTheir body folded in ways bones shouldn\'t allow. Sounded like bubble wrap.',
-            '### 💀 {name} couldn\'t stop growing\nSquashed into the ceiling like a hydraulic press video. Wet.',
-            '### 💀 {name}\'s skeleton gave out\nTurns out bones have a size limit. {name} found it.',
-        ],
-    },
-    {
-        prompt: '### 💉 Your blood is boiling. Literally.\nSteam is coming out of your pores. Your veins are bulging and glowing orange.',
-        correct: { label: 'Ice Bath NOW', emoji: '🧊' },
-        wrong: [
-            { label: 'Sweat It Out', emoji: '💦' },
-            { label: 'Drink Water', emoji: '🚰' },
-            { label: 'Man Up', emoji: '😤' },
-        ],
-        deathLines: [
-            '### 💀 {name} boiled from the inside\nLike a kettle that forgot it was a person. The steam was red.',
-            '### 💀 {name}\'s veins burst simultaneously\nEvery single one. It looked like a sprinkler system from hell.',
-            '### 💀 {name} melted\nNot metaphorically. Literally liquefied. There\'s a puddle where they stood.',
-        ],
-    },
-    {
-        prompt: '### 💉 You can hear everyone\'s thoughts\nAll of them. AT ONCE. It\'s getting louder. Your nose is bleeding.',
-        correct: { label: 'Focus On Nothing', emoji: '🧘' },
-        wrong: [
-            { label: 'Listen Harder', emoji: '👂' },
-            { label: 'Scream Back', emoji: '🗣️' },
-            { label: 'Think Louder', emoji: '🧠' },
-        ],
-        deathLines: [
-            '### 💀 {name}\'s brain short-circuited\nEvery thought in the building hit them at once. Their head just... stopped.',
-            '### 💀 {name} heard too much\nBlood from every orifice. Then the seizure. Then silence.',
-            '### 💀 {name}\'s skull cracked open from the inside\nTurns out the human brain has a bandwidth limit.',
-        ],
-    },
-    {
-        prompt: '### 💉 You just duplicated yourself\nThere\'s two of you now. But the clone is looking at you weird. Really weird.',
-        correct: { label: 'Assert Dominance', emoji: '👊' },
-        wrong: [
-            { label: 'Befriend It', emoji: '🤝' },
-            { label: 'Run Away', emoji: '🏃' },
-            { label: 'Hug Yourself', emoji: '🫂' },
-        ],
-        deathLines: [
-            '### 💀 {name} was replaced by their clone\nThe clone smiled. Nobody noticed the switch. Original {name} was found in a dumpster.',
-            '### 💀 {name} and their clone merged back\nTwo bodies tried to occupy one space. Physics won. {name} lost.',
-            '### 💀 The clone ate {name}\nNot a metaphor. It unhinged its jaw like a snake. Wild stuff.',
-        ],
-    },
-    {
-        prompt: '### 💉 Your hands turned into blades\nActual metal blades. They\'re sharp. You can\'t control them. You\'re swinging.',
-        correct: { label: 'Stay Perfectly Still', emoji: '🧊' },
-        wrong: [
-            { label: 'Jazz Hands', emoji: '🤗' },
-            { label: 'High Five Someone', emoji: '✋' },
-            { label: 'Clap', emoji: '👏' },
-        ],
-        deathLines: [
-            '### 💀 {name} clapped\nBlade hands. They cut themselves in half lengthwise.',
-            '### 💀 {name} tried to scratch their nose\nInstant lobotomy. DIY.',
-            '### 💀 {name} sneezed and flinched\nThe blades did the rest. Three pieces.',
-        ],
-    },
-    {
-        prompt: '### 💉 Gravity reversed around you\nYou\'re floating toward the ceiling. Your shoes are still on the ground.',
-        correct: { label: 'Grab Something', emoji: '🪢' },
-        wrong: [
-            { label: 'Enjoy Flying', emoji: '🕊️' },
-            { label: 'Flap Your Arms', emoji: '🦅' },
-            { label: 'Let Go', emoji: '🫠' },
-        ],
-        deathLines: [
-            '### 💀 {name} hit the ceiling at terminal velocity\nFrom below. Upside down pancake.',
-            '### 💀 {name} flew through the roof\nAnd kept going. Satellite footage showed them entering the stratosphere.',
-            '### 💀 {name} reversed so hard their organs didn\'t\nBody went up. Internal organs stayed down. Briefly separated.',
-        ],
-    },
-    {
-        prompt: '### 💉 Your body is phasing in and out of reality\nParts of you keep disappearing. You can see another dimension through your torso.',
-        correct: { label: 'Ground Yourself', emoji: '⚡' },
-        wrong: [
-            { label: 'Lean Into It', emoji: '🌀' },
-            { label: 'Walk Through A Wall', emoji: '🚪' },
-            { label: 'Phase Completely', emoji: '👻' },
-        ],
-        deathLines: [
-            '### 💀 {name} phased out permanently\nHalf of them is in this dimension. The other half... isn\'t.',
-            '### 💀 {name} got stuck between dimensions\nFrozen mid-phase. Their screaming face is now a permanent art installation.',
-            '### 💀 {name} phased inside a wall\nWhen they solidified, they became part of the architecture.',
-        ],
-    },
-    {
-        prompt: '### 💉 Your teeth are multiplying\nThey\'re growing in rows, like a shark. Your mouth can\'t close anymore.',
-        correct: { label: 'Spit Them Out', emoji: '🦷' },
-        wrong: [
-            { label: 'Smile Wide', emoji: '😁' },
-            { label: 'Bite Something', emoji: '🫦' },
-            { label: 'Start Chewing', emoji: '😬' },
-        ],
-        deathLines: [
-            '### 💀 {name}\'s teeth filled their entire skull\nEvery cavity, every sinus. Teeth where brain should be.',
-            '### 💀 {name} choked on their own teeth\nHundreds of them, flooding down their throat like a gumball machine.',
-            '### 💀 {name}\'s jaw exploded from the pressure\nToo many teeth, not enough face.',
-        ],
-    },
-    {
-        prompt: '### 💉 You\'re vibrating at a molecular level\nYou can feel every atom in your body shaking. The floor beneath you is cracking.',
-        correct: { label: 'Slow Your Breathing', emoji: '🌬️' },
-        wrong: [
-            { label: 'Vibrate Faster', emoji: '📳' },
-            { label: 'Touch Someone', emoji: '🤚' },
-            { label: 'Dance With It', emoji: '💃' },
-        ],
-        deathLines: [
-            '### 💀 {name} vibrated apart\nEvery molecule separated simultaneously. They became a fine mist. Tasted metallic.',
-            '### 💀 {name} shook so hard they phased through the floor\nFell through six stories. Each floor took a layer.',
-            '### 💀 {name} touched the table\nThe vibration transferred. The table exploded. So did {name}.',
-        ],
-    },
-    {
-        prompt: '### 💉 Something is moving under your skin\nIt\'s alive. You can see it crawling from your arm toward your chest.',
-        correct: { label: 'Contain It', emoji: '🩹' },
-        wrong: [
-            { label: 'Let It Out', emoji: '🔪' },
-            { label: 'Push It Back', emoji: '👇' },
-            { label: 'Name It', emoji: '🏷️' },
-        ],
-        deathLines: [
-            '### 💀 Something burst out of {name}\nLike a Xenomorph but way less cool. It waved goodbye.',
-            '### 💀 {name} tried to cut it out\nIt was their skeleton. Their skeleton was trying to leave.',
-            '### 💀 {name}\'s entire skin walked away\nJust... left. Stood up and walked off. {name} remained. Briefly.',
-        ],
-    },
-    {
-        prompt: '### 💉 You can suddenly see the future\nEvery possible death. All of them are yours. All of them are NOW.',
-        correct: { label: 'Accept It', emoji: '🧿' },
-        wrong: [
-            { label: 'Change The Future', emoji: '⏰' },
-            { label: 'Look Away', emoji: '🙈' },
-            { label: 'Scream At God', emoji: '⬆️' },
-        ],
-        deathLines: [
-            '### 💀 {name} saw their own death\nAnd then it happened exactly as shown. Self-fulfilling prophecy.',
-            '### 💀 {name} tried to dodge fate\nFate doesn\'t miss. {name} walked directly into the death they were running from.',
-            '### 💀 {name} saw every death at once\nTheir brain couldn\'t handle the paradox. Instant shutdown.',
-        ],
-    },
-    {
-        prompt: '### 💉 Your shadow detached from the ground\nIt\'s standing up. It\'s looking at you. It\'s taller than you.',
-        correct: { label: 'Step On It', emoji: '🦶' },
-        wrong: [
-            { label: 'Talk To It', emoji: '💬' },
-            { label: 'Turn Off The Lights', emoji: '🔦' },
-            { label: 'Offer It A Deal', emoji: '🤝' },
-        ],
-        deathLines: [
-            '### 💀 {name}\'s shadow replaced them\nIt wore their face now. Nobody noticed. Nobody mourned.',
-            '### 💀 {name} was absorbed by their own shadow\nPulled flat like a cartoon. But the screaming was very real.',
-            '### 💀 {name} turned off the lights\nWithout light, the shadow was everywhere. {name} was nowhere.',
-        ],
-    },
+const SYRINGE_NAMES = [
+    '"Trust Me"', '"Totally Safe"', '"Experimental"', '"Expired 2019"',
+    '"Smells Funny"', '"Glowing Blue"', '"Batch #V-47"', '"FDA Pending"',
+    '"You\'ll Be Fine"', '"Do NOT Shake"', '"Unlabeled"', '"The Good Stuff"',
+    '"Boss Said Send It"', '"Not Tested On Animals"', '"Plan B"',
+    '"From The Back Of The Fridge"', '"Intern Made This"', '"Label Fell Off"',
+    '"Ask Legal First"', '"NDA Required"',
 ];
 
 // ═══════════════════════════════════════════
-//  CHAOS EVENTS — The Boys-level unhinged
+//  SURVIVAL POWERS (funny/absurd side effects)
 // ═══════════════════════════════════════════
 
-const CHAOS_EVENTS = [
-    {
-        name: '👁️ HOMELANDER IS WATCHING',
-        description: 'Timer halved. He doesn\'t like slow people.',
-        effect: 'half_timer',
-    },
-    {
-        name: '🥛 SOMEONE BROUGHT MILK',
-        description: 'Homelander is distracted — extra time this round.',
-        effect: 'extra_time',
-    },
-    {
-        name: '🩸 DOUBLE DOSE',
-        description: 'Two people get eliminated this round.',
-        effect: 'double_elim',
-    },
-    {
-        name: '🔇 BLACK NOIR\'S SHADOW',
-        description: 'One button is a decoy. Choose wisely.',
-        effect: 'decoy_button',
-    },
-    {
-        name: '🫗 TEMP V',
-        description: 'The correct answer changes after 3 seconds.',
-        effect: 'switch_answer',
-    },
-    {
-        name: '⚡ STARLIGHT SURGE',
-        description: 'Everyone who survives gets a second chance next round.',
-        effect: 'shield', // survivors get a free pass on next failure
-    },
+const SURVIVAL_POWERS = [
+    'can now hear WiFi signals. It\'s mostly screaming.',
+    'has teeth that are slightly magnetic. Keys keep sticking to their face.',
+    'can taste emotions. Fear tastes like pennies.',
+    'turns plaid when nervous.',
+    'can speak to pigeons. They\'re all incredibly rude.',
+    'has carbonated blood now. They fizz when you poke them.',
+    'can see 2 seconds into the past. Completely useless.',
+    'has one eye that sees through walls. The other one just vibes.',
+    'sweats pure cinnamon oil. Smells great, burns everything.',
+    'can photosynthesize, but only on Tuesdays.',
+    'is now allergic to their own thoughts.',
+    'has fingernails that grow at 10x speed. Already needs a trim.',
+    'can turn invisible, but only when nobody is looking.',
+    'has a shadow that runs on a 3-second delay.',
+    'grew a fully functional third ear. It\'s on their elbow.',
+    'bleeds glitter now. HR has questions.',
+    'can smell the future. Tomorrow smells like burnt toast.',
+    'has bones that are now rubber. Standing is a suggestion.',
+    'can communicate with kitchen appliances. The toaster has concerns.',
+    'now emits a faint humming noise at all times. Nobody can identify the song.',
+    'has taste buds on their fingertips. Every handshake is a journey.',
+    'became slightly transparent. Not invisible. Just unsettling.',
+    'grew gills on their neck. They work but the turtleneck budget just tripled.',
+    'has déjà vu every 4 seconds. This is going to get old.',
+    'can run at 200mph but only backwards.',
+    'is now always slightly damp. Always. Even indoors.',
+    'can talk to plants. They\'re all extremely passive-aggressive.',
+    'developed echolocation. Keeps bumping into glass doors anyway.',
+    'has a heartbeat you can hear from 10 feet away. Stealth is no longer an option.',
+    'can float, but only 2 inches off the ground. Just enough to be weird.',
+    'their voice randomly autotunes. Sounds incredible. Can\'t control it.',
+    'generates static electricity. Shocks everyone they touch. No friends.',
+    'can predict the weather, but only weather that already happened.',
+    'their reflection blinks separately from them.',
+    'now thinks in Comic Sans.',
 ];
 
-// ——— Injection flavor text ———
-const INJECTION_FLAVOR = [
-    '### 💉 Vought technicians inject the next dose...',
-    '### 💉 The syringe is glowing blue. That can\'t be good.',
-    '### 💉 A Vought intern stabs you with something unlabeled.',
-    '### 💉 Compound V. Fresh batch. Smells like copper.',
-    '### 💉 The needle goes in. You feel everything change.',
-    '### 💉 "This batch is... experimental." — Vought Lab Tech',
-    '### 💉 The liquid is moving on its own inside the syringe.',
-];
+// ═══════════════════════════════════════════
+//  DEATH SCENES — absurdist, dark, Discord-safe
+//  (no graphic gore — suggest, don't describe)
+// ═══════════════════════════════════════════
 
-// ——— Survival flavor ———
-const SURVIVE_FLAVOR = [
-    '{name} made the right call. For now.',
-    '{name} survives. Barely.',
-    '{name} gets to live another round. Lucky.',
-    '{name} contained it. This time.',
-    'Vought approves of {name}\'s survival instinct.',
-    '{name} did NOT die horribly. Impressive.',
-    '{name} lives. The compound settles... for now.',
+const DEATH_SCENES = [
+    // Absurdist
+    '{name} simply stopped existing. Vought PR says they "transitioned to a non-corporate role."',
+    '{name} was yeeted into the stratosphere. Weather reports confirm a new cloud shaped like a person.',
+    '{name} turned into a fine mist. Vought classified it as "aggressive evaporation."',
+    '{name} got folded like an origami crane. A very screamy origami crane.',
+    '{name} blinked out of reality. Their Discord status still says online though.',
+    '{name} was recalled by the manufacturer. Warranty expired.',
+    '{name} buffered like a YouTube video on hotel WiFi. And then the loading screen became permanent.',
+    '{name} was divided by zero. Math has consequences.',
+    '{name} achieved immortality for 0.001 seconds. Then achieved the opposite.',
+    '{name} ragdolled. Like a video game glitch but in real life.',
+
+    // Corporate satire
+    '{name} experienced "rapid unscheduled disassembly." — Vought Incident Report #4,281',
+    'Vought would like to clarify that {name} is NOT dead. They are "permanently indisposed."',
+    '{name}\'s departure was "mutual." — Vought HR',
+    '{name} violated their NDA by dying. Vought is suing their next of kin.',
+    'Vought thanks {name} for their "voluntary contribution to science." Thoughts and prayers.',
+    '{name} has been "optimized." Their desk has already been reassigned.',
+    'Per Vought policy, {name}\'s death will be reviewed in Q3. Until then, they are "on leave."',
+    '"We are deeply saddened by {name}\'s departure and wish them well in their future non-living endeavors." — Vought PR',
+    '{name} signed the liability waiver. In retrospect, they should have read it.',
+    'Vought stock went up 2% after {name}\'s elimination. The market is heartless.',
+
+    // Homelander references
+    '{name} made eye contact with Homelander. That was their first mistake. Smiling was their second.',
+    'Homelander gave {name} a thumbs up. Then the thumbs up got... aggressive.',
+    '"I can do whatever I want." Homelander was referring to {name}\'s continued existence. Past tense.',
+    'Homelander told {name} they were his favorite. That\'s never a good sign.',
+    '{name} asked Homelander if he was okay. He was not. Neither is {name} now.',
+
+    // Absurd transformations
+    '{name} turned into a lawn chair. A very haunted lawn chair. It screams when you sit on it.',
+    '{name}\'s atoms decided to pursue individual careers. Couldn\'t agree on a group project.',
+    '{name} became a concept. Not a person. Just... a vague idea of one.',
+    '{name}\'s reflection climbed out, said "my turn," and walked away. It has their phone.',
+    '{name} was replaced by a very convincing potted plant. Nobody noticed for 3 rounds.',
+    '{name} clipped through the floor like a Bethesda NPC. Gone.',
+    '{name} got autocorrected out of existence.',
+    '{name} was uninstalled.',
+    '{name} received a firmware update. It was not compatible.',
+    '{name} got sent to the shadow realm. No, literally. Vought has one.',
 ];
 
 // ——— Timeout deaths ———
 const TIMEOUT_DEATHS = [
-    '### 💀 {name} froze\nThe compound didn\'t wait. Neither did death.',
-    '### 💀 {name} just stood there\nThe side effect consumed them while they panicked.',
-    '### 💀 {name} was too slow\nVought\'s report will list cause of death as "indecision."',
-    '### 💀 {name} timed out\nHomelander would be disappointed. Actually, he\'d probably laugh.',
-    '### 💀 {name} couldn\'t choose\nSo the compound chose for them. It chose violence.',
+    '{name} couldn\'t choose. So Vought chose for them. Vought chose badly.',
+    '{name} froze. Homelander leaned in and whispered "disappointing." Lights out.',
+    '{name} took too long. Vought billed their family for the wasted syringe.',
+    '{name} hesitated. In Vought\'s lab, hesitation is listed as cause of death.',
+    '{name} went AFK in a Vought lab. Bold strategy. Did not work.',
+    'Homelander got bored waiting for {name}. You don\'t want Homelander bored.',
 ];
 
-// ——— Wrong choice deaths ———
-const WRONG_CHOICE_DEATHS = [
-    '### 💀 {name} made the wrong call\nConfidently wrong. The worst kind.',
-    '### 💀 {name} picked... that?\nThe Vought interns are taking bets on who\'s dumbest.',
+// ——— Chaos events ———
+const CHAOS_EVENTS = [
+    {
+        name: '👁️ HOMELANDER IS WATCHING',
+        description: 'He looks bored. Timer cut to **10 seconds**.',
+        effect: 'short_timer',
+    },
+    {
+        name: '🥛 MILK BREAK',
+        description: 'Homelander found the milk fridge. Timer extended to **30 seconds**.',
+        effect: 'long_timer',
+    },
+    {
+        name: '☠️ EXTRA DOSE',
+        description: 'Vought added another bad syringe to the rack.',
+        effect: 'extra_lethal',
+    },
+    {
+        name: '🧬 STABILIZED BATCH',
+        description: 'A lethal syringe was swapped out. Slightly safer... probably.',
+        effect: 'remove_lethal',
+    },
+    {
+        name: '⚡ STARLIGHT SHORTED THE LIGHTS',
+        description: 'All labels are hidden. Good luck.',
+        effect: 'blind',
+    },
+    {
+        name: '🤫 THE DEEP SAID SOMETHING HELPFUL',
+        description: 'For once. One safe syringe was removed from the rack.',
+        effect: 'remove_safe',
+    },
 ];
 
-// ──────────────────────────────────────────
-//  Build reaction buttons
-// ──────────────────────────────────────────
+// ——— Inject suspense text ———
+const INJECT_FLAVOR = [
+    '💉 The Vought tech loads the next rack...',
+    '💉 A lab intern wheels in a fresh tray of syringes...',
+    '💉 "This batch is from the Tuesday lab. The *weird* Tuesday lab." — Vought Tech',
+    '💉 The syringes are humming. That\'s new.',
+    '💉 A-Train dropped off the new rack. He seemed nervous.',
+    '💉 "I\'m sure it\'s fine." — intern who is standing very far away',
+    '💉 The labels are handwritten. One of them says "oops."',
+];
 
-function buildReactionButtons(gameId, effect, opts = {}) {
-    const { hasDecoy, decoyExtra } = opts;
+// ——— Rack reloaded flavor ———
+const RELOAD_FLAVOR = [
+    'Rack reloaded.',
+    'Fresh syringes. Fresh terror.',
+    'New rack. Same existential dread.',
+    'Vought restocked. How thoughtful.',
+    'The intern brought a new tray. Their hands are shaking.',
+];
 
-    const allButtons = [
-        { ...effect.correct, isCorrect: true },
-        ...effect.wrong.map(w => ({ ...w, isCorrect: false })),
-    ];
+// ═══════════════════════════════════════════
+//  RACK TIERS — escalating danger
+//  Each time someone dies, next tier loads
+// ═══════════════════════════════════════════
 
-    // Add decoy if chaos event
-    if (hasDecoy && decoyExtra) {
-        allButtons.push({ ...decoyExtra, isCorrect: false, isDecoy: true });
-    }
+const RACK_TIERS = [
+    { total: 6, lethal: 1 },   // 17% initial → guaranteed by syringe 6
+    { total: 6, lethal: 1 },   // same odds, fresh rack
+    { total: 6, lethal: 2 },   // 33% initial
+    { total: 5, lethal: 2 },   // 40% initial
+    { total: 5, lethal: 2 },   // 40% initial
+    { total: 4, lethal: 2 },   // 50% initial — endgame
+];
 
-    shuffle(allButtons);
+// ═══════════════════════════════════════════
+//  Build a rack (array of syringes, shuffled)
+// ═══════════════════════════════════════════
 
+function buildRack(total, lethalCount) {
+    const names = shuffle([...SYRINGE_NAMES]).slice(0, total);
+    const rack = names.map((name, i) => ({
+        label: name,
+        lethal: i < lethalCount,
+    }));
+    shuffle(rack); // randomize which positions are lethal
+    return rack;
+}
+
+// ═══════════════════════════════════════════
+//  Build syringe buttons from rack
+// ═══════════════════════════════════════════
+
+function buildSyringeButtons(gameId, rack, blind = false) {
     const rows = [];
     let currentRow = new ActionRowBuilder();
     let count = 0;
 
-    for (const btn of allButtons) {
+    for (let i = 0; i < rack.length; i++) {
         if (count > 0 && count % 5 === 0) {
             rows.push(currentRow);
             currentRow = new ActionRowBuilder();
         }
 
-        const id = btn.isDecoy
-            ? `${gameId}_decoy_${Date.now()}_${count}`
-            : btn.isCorrect
-                ? `${gameId}_correct`
-                : `${gameId}_wrong_${count}`;
-
         currentRow.addComponents(
             new ButtonBuilder()
-                .setCustomId(id)
-                .setLabel(btn.label)
-                .setEmoji(btn.emoji)
-                .setStyle(btn.isCorrect ? ButtonStyle.Secondary : ButtonStyle.Secondary),
+                .setCustomId(`${gameId}_syringe_${i}`)
+                .setLabel(blind ? '???' : rack[i].label)
+                .setEmoji(blind ? '❓' : '💉')
+                .setStyle(ButtonStyle.Secondary),
         );
         count++;
     }
@@ -361,82 +254,49 @@ function buildReactionButtons(gameId, effect, opts = {}) {
     return rows.slice(0, 5);
 }
 
-// ──────────────────────────────────────────
-//  Wait for all players to react (or timeout)
-// ──────────────────────────────────────────
+// ═══════════════════════════════════════════
+//  Wait for ONE player to pick a syringe
+// ═══════════════════════════════════════════
 
-function waitForReactions(msg, gameId, alivePlayers, timerMs, opts = {}) {
+function waitForPick(msg, gameId, playerId, timerMs) {
     return new Promise((resolve) => {
-        const responses = new Map(); // playerId -> 'correct' | 'wrong' | 'decoy' | 'switched'
-        const { switchAfterMs } = opts;
-        let switched = false;
+        let resolved = false;
 
         const collector = msg.createMessageComponentCollector({
-            filter: (i) => i.customId.startsWith(`${gameId}_`),
+            filter: (i) => i.customId.startsWith(`${gameId}_syringe_`),
             time: timerMs,
         });
 
-        // If TEMP V chaos: switch the correct answer after a delay
-        let switchTimer = null;
-        if (switchAfterMs) {
-            switchTimer = setTimeout(() => {
-                switched = true;
-            }, switchAfterMs);
-        }
-
         collector.on('collect', async (i) => {
-            if (!alivePlayers.includes(i.user.id)) {
-                await i.reply({ content: 'You\'re not in this trial.', ephemeral: true }).catch(() => {});
+            if (i.user.id !== playerId) {
+                await i.reply({
+                    content: 'Not your turn. Just watch. And pray for them.',
+                    ephemeral: true,
+                }).catch(() => {});
                 return;
             }
 
-            if (responses.has(i.user.id)) {
-                await i.reply({ content: 'You already reacted! No take-backs.', ephemeral: true }).catch(() => {});
-                return;
-            }
-
+            resolved = true;
+            const index = parseInt(i.customId.replace(`${gameId}_syringe_`, ''));
             await i.deferUpdate().catch(() => {});
-
-            if (i.customId.startsWith(`${gameId}_decoy`)) {
-                responses.set(i.user.id, 'decoy');
-            } else if (i.customId === `${gameId}_correct`) {
-                // If switched (TEMP V), correct becomes wrong
-                responses.set(i.user.id, switched ? 'switched' : 'correct');
-            } else {
-                // Wrong button — but if switched, one of the "wrong" ones is now correct? 
-                // Nah, keep it simple: wrong is always wrong. Only correct can flip.
-                responses.set(i.user.id, 'wrong');
-            }
-
-            // If everyone has answered, stop early
-            if (responses.size >= alivePlayers.length) {
-                collector.stop('all_answered');
-            }
+            collector.stop('picked');
+            resolve({ picked: true, index });
         });
 
         collector.on('end', () => {
-            if (switchTimer) clearTimeout(switchTimer);
-
-            // Players who didn't respond = timed out
-            for (const id of alivePlayers) {
-                if (!responses.has(id)) {
-                    responses.set(id, 'timeout');
-                }
-            }
-
-            resolve(responses);
+            if (!resolved) resolve({ picked: false });
         });
     });
 }
 
-// ══════════════════════════════════════════
-//  MODULE EXPORT
-// ══════════════════════════════════════════
+// ═══════════════════════════════════════════
+//  MODULE
+// ═══════════════════════════════════════════
 
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('compound')
-        .setDescription('Compound V Roulette — survive the side effects or die horribly. (Admin)')
+        .setDescription('Compound V Roulette — pick a syringe and pray. Last one standing wins. (Admin)')
         .addChannelOption(opt =>
             opt.setName('channel').setDescription('Channel to play in').setRequired(true))
         .addStringOption(opt =>
@@ -488,7 +348,7 @@ module.exports = {
         await interaction.reply({ content: `✅ Compound V Roulette dropped in ${channel}!`, ephemeral: true });
 
         // ══════════════════════════════════════════
-        //  PHASE 1 — RECRUITMENT (Join)
+        //  PHASE 1 — RECRUITMENT
         // ══════════════════════════════════════════
 
         const participants = new Map();
@@ -505,23 +365,24 @@ module.exports = {
             return new EmbedBuilder()
                 .setDescription(
                     `### 🧬 COMPOUND V ROULETTE — ${card.name}\n` +
-                    `${emoji} ${cap(card.rarity)} card to the survivor\n\n` +
-                    `Vought Industries needs **test subjects**.\n` +
-                    `You\'ll be injected with Compound V.\n` +
-                    `Side effects include: **death**.\n` +
-                    `React correctly — or get eliminated in ways that\'ll haunt this server.\n\n` +
-                    `Recruitment closes in **${formatTime(remaining)}** · Need **${MIN_PLAYERS}+** subjects\n\n` +
-                    `**${names.length}** recruited\n${list}`
+                    `${emoji} ${cap(card.rarity)} card to the last one standing\n\n` +
+                    `**How it works:**\n` +
+                    `╰ Players take turns picking a syringe from the rack\n` +
+                    `╰ Most are Compound V — you survive (with side effects)\n` +
+                    `╰ Some are **Compound X** — you don\'t survive\n` +
+                    `╰ Last person alive wins the card\n\n` +
+                    `Closes in **${formatTime(remaining)}** · Need **${MIN_PLAYERS}+** subjects\n\n` +
+                    `**${names.length}** signed up\n${list}`
                 )
                 .setThumbnail(card.imageUrl)
-                .setColor(0x8b0000)
-                .setFooter({ text: '"The best part about being a hero? Nobody can stop you." — Homelander' });
+                .setColor(0x1a1a2e)
+                .setFooter({ text: '"Vought International — Because heroes need sponsors."' });
         }
 
         const joinRow = new ActionRowBuilder().addComponents(
             new ButtonBuilder()
                 .setCustomId(`${gameId}_join`)
-                .setLabel('Volunteer')
+                .setLabel('Volunteer as Tribute')
                 .setEmoji('💉')
                 .setStyle(ButtonStyle.Danger),
         );
@@ -546,7 +407,7 @@ module.exports = {
 
         joinCollector.on('collect', async (i) => {
             if (participants.has(i.user.id)) {
-                await i.reply({ content: 'You\'re already signed up, Subject.', ephemeral: true });
+                await i.reply({ content: 'You already signed up, Subject. No take-backs.', ephemeral: true });
                 return;
             }
             participants.set(i.user.id, i.user.globalName || i.user.username);
@@ -560,8 +421,8 @@ module.exports = {
                 const failEmbed = new EmbedBuilder()
                     .setDescription(
                         `### 🧬 Trial Cancelled\n` +
-                        `Vought needed **${MIN_PLAYERS}** subjects. Only **${participants.size}** volunteered.\n` +
-                        `Homelander is displeased.`
+                        `Needed **${MIN_PLAYERS}** volunteers. Only **${participants.size}** showed up.\n` +
+                        `Homelander is "disappointed." You don\'t want Homelander disappointed.`
                     )
                     .setColor(0x2b2d31);
 
@@ -573,255 +434,271 @@ module.exports = {
             }
 
             // ══════════════════════════════════════════
-            //  PHASE 2 — THE TRIALS
+            //  PHASE 2 — THE ROULETTE
             // ══════════════════════════════════════════
 
-            const alive = [...participants.keys()];
+            const alive = shuffle([...participants.keys()]);
             const eliminated = [];
-            let roundNum = 0;
-            const usedEffects = new Set();
-            let shielded = new Set(); // from STARLIGHT SURGE
+            const usedPowers = new Set();
+            let turnIndex = 0;      // who's up in rotation
+            let rackNum = 0;        // which difficulty tier
+            let turnTotal = 0;      // total turns played
+
+            // Build first rack
+            const tier = RACK_TIERS[Math.min(rackNum, RACK_TIERS.length - 1)];
+            let rack = buildRack(tier.total, tier.lethal);
+            let currentLethal = tier.lethal;
 
             // Delete join message, ping everyone
             await msg.delete().catch(() => {});
 
             const mentions = alive.map(id => `<@${id}>`).join(' ');
-            msg = await channel.send({ content: `${mentions}\n### 🧬 Compound V trials are beginning...` });
-            await msg.edit({ content: '### 🧬 Compound V trials are beginning...' }).catch(() => {});
-            await new Promise(r => setTimeout(r, 2000));
+            msg = await channel.send({ content: `${mentions}\n### 🧬 The Vought trials are starting...` });
+            await msg.edit({ content: '### 🧬 The Vought trials are starting...' }).catch(() => {});
+            await new Promise(r => setTimeout(r, 1500));
 
+            // Intro
             const introEmbed = new EmbedBuilder()
                 .setDescription(
-                    `### 🏢 Welcome to Vought Tower\n\n` +
-                    `**${participants.size}** test subjects. One survivor.\n` +
-                    `Each round, you\'ll be injected with Compound V.\n` +
-                    `The side effects are... unpredictable.\n\n` +
-                    `React correctly, or die in ways that\'ll make Homelander uncomfortable.\n\n` +
-                    `*And that\'s saying something.*`
+                    `### 🏢 Welcome to Vought Tower, Floor B7\n\n` +
+                    `**${participants.size}** test subjects. One survivor gets the card.\n\n` +
+                    `A rack of syringes sits on the table.\n` +
+                    `Most contain **Compound V** — you\'ll survive with... side effects.\n` +
+                    `But some contain **Compound X** — and that\'s a problem.\n\n` +
+                    `Pick a syringe when it\'s your turn.\n` +
+                    `Or don\'t. Vought doesn\'t care either way.\n\n` +
+                    `**Turn order:**\n` +
+                    alive.map((id, i) => `${i + 1}. ${participants.get(id)}`).join('\n')
                 )
-                .setColor(0x8b0000);
+                .setColor(0x1a1a2e)
+                .setFooter({ text: 'Vought Legal reminds you: you signed the waiver.' });
             await msg.edit({ content: '', embeds: [introEmbed], components: [] }).catch(() => {});
-            await new Promise(r => setTimeout(r, 3000));
+            await new Promise(r => setTimeout(r, 4000));
 
             // ——— GAME LOOP ———
             while (alive.length > 1) {
-                roundNum++;
+                turnTotal++;
+                const currentId = alive[turnIndex % alive.length];
+                const currentName = participants.get(currentId);
+                let timerMs = TURN_TIMEOUT_MS;
+                let blind = false;
 
-                // Pick a side effect we haven't used yet (reset if exhausted)
-                let availableEffects = SIDE_EFFECTS.filter((_, i) => !usedEffects.has(i));
-                if (availableEffects.length === 0) {
-                    usedEffects.clear();
-                    availableEffects = [...SIDE_EFFECTS];
-                }
-                const effectIndex = SIDE_EFFECTS.indexOf(pick(availableEffects));
-                usedEffects.add(effectIndex);
-                const effect = SIDE_EFFECTS[effectIndex];
-
-                // Timer: shrinks per round
-                const shrink = Math.floor(roundNum * 250);
-                let timerMs = Math.max(MIN_REACT_MS, BASE_REACT_MS - shrink);
-
-                // Chaos event check
+                // Chaos event check (not on first turn)
                 let chaosEvent = null;
-                let hasDecoy = false;
-                let decoyExtra = null;
-                let isDoubleElim = false;
-                let switchAfterMs = null;
-                let addShield = false;
-
-                if (roundNum > 1 && Math.random() < CHAOS_CHANCE) {
+                if (turnTotal > 1 && Math.random() < CHAOS_CHANCE) {
                     chaosEvent = pick(CHAOS_EVENTS);
 
                     switch (chaosEvent.effect) {
-                        case 'half_timer':
-                            timerMs = Math.max(MIN_REACT_MS, Math.ceil(timerMs / 2));
+                        case 'short_timer':
+                            timerMs = 10_000;
                             break;
-                        case 'extra_time':
-                            timerMs = Math.min(BASE_REACT_MS + 3000, timerMs + 3000);
+                        case 'long_timer':
+                            timerMs = 30_000;
                             break;
-                        case 'double_elim':
-                            isDoubleElim = alive.length > 2;
+                        case 'extra_lethal':
+                            if (rack.length > currentLethal + 1) {
+                                // convert a safe syringe to lethal
+                                const safeIdx = rack.findIndex(s => !s.lethal);
+                                if (safeIdx !== -1) {
+                                    rack[safeIdx].lethal = true;
+                                    currentLethal++;
+                                }
+                            } else {
+                                chaosEvent = null; // skip if can't add more
+                            }
                             break;
-                        case 'decoy_button':
-                            hasDecoy = true;
-                            // Pick a random wrong-looking button as decoy
-                            decoyExtra = { label: effect.correct.label, emoji: '❓' };
+                        case 'remove_lethal':
+                            if (currentLethal > 1) {
+                                const lethalIdx = rack.findIndex(s => s.lethal);
+                                if (lethalIdx !== -1) {
+                                    rack[lethalIdx].lethal = false;
+                                    currentLethal--;
+                                }
+                            } else {
+                                chaosEvent = null;
+                            }
                             break;
-                        case 'switch_answer':
-                            switchAfterMs = 3000;
+                        case 'blind':
+                            blind = true;
                             break;
-                        case 'shield':
-                            addShield = true;
+                        case 'remove_safe':
+                            if (rack.length > currentLethal + 1) {
+                                const safeIdx = rack.findIndex(s => !s.lethal);
+                                if (safeIdx !== -1) {
+                                    rack.splice(safeIdx, 1);
+                                }
+                            } else {
+                                chaosEvent = null;
+                            }
                             break;
                     }
                 }
 
+                // Deadline
                 const deadline = Math.floor((Date.now() + timerMs) / 1000);
 
-                // ——— Injection phase ———
-                const injectionEmbed = new EmbedBuilder()
-                    .setDescription(pick(INJECTION_FLAVOR))
-                    .setColor(0x4a0080);
-                await msg.edit({ content: '', embeds: [injectionEmbed], components: [] }).catch(() => {});
-                await new Promise(r => setTimeout(r, randInt(1500, 2500)));
-
-                // ——— Side effect reveal ———
-                const aliveList = alive.map(id => {
-                    const shield = shielded.has(id) ? ' 🛡️' : '';
-                    return `╰ ${participants.get(id)}${shield}`;
+                // Build alive/elim lists
+                const orderList = alive.map((id, i) => {
+                    const pointer = id === currentId ? '▸ ' : '╰ ';
+                    const tag = id === currentId ? ' **← PICKING**' : '';
+                    return `${pointer}${participants.get(id)}${tag}`;
                 }).join('\n');
 
                 const elimList = eliminated.length > 0
                     ? eliminated.map(id => `~~${participants.get(id)}~~`).join(', ')
                     : null;
 
+                // Rack display (syringes remaining — hide which are lethal)
+                const safeCount = rack.filter(s => !s.lethal).length;
+                const rackVisual = `${'💉'.repeat(safeCount)}${'💀'.repeat(currentLethal)}  *(${rack.length} syringes — ${currentLethal} lethal)*`;
+
+                // Chaos text
                 let chaosText = '';
                 if (chaosEvent) {
                     chaosText = `\n> ⚠️ **${chaosEvent.name}** — ${chaosEvent.description}\n`;
                 }
 
-                const effectEmbed = new EmbedBuilder()
+                // Build the turn embed
+                const turnEmbed = new EmbedBuilder()
                     .setDescription(
-                        `### 🧬 Round ${roundNum} — Compound V Roulette\n` +
+                        `### 🧬 Compound V Roulette — ${card.name}\n` +
                         chaosText +
-                        `\n${effect.prompt}\n\n` +
-                        `**React NOW** — ⏱ <t:${deadline}:R>\n\n` +
-                        `**Alive (${alive.length})**\n${aliveList}` +
-                        (elimList ? `\n\nDead: ${elimList}` : '')
+                        `\n# 🎯 ${currentName}'s turn\n\n` +
+                        `Pick a syringe. **${currentLethal}** of them are Compound X.\n` +
+                        `⏱ <t:${deadline}:R>\n\n` +
+                        `**The Rack:**\n${rackVisual}\n\n` +
+                        `**Alive (${alive.length})**\n${orderList}` +
+                        (elimList ? `\n\n💀 Dead: ${elimList}` : '')
                     )
                     .setThumbnail(card.imageUrl)
-                    .setColor(timerMs <= 4000 ? 0xff0000 : 0x8b0000)
-                    .setFooter({ text: `Trial ${roundNum} · ${(timerMs / 1000).toFixed(0)}s to react` });
+                    .setColor(0x1a1a2e)
+                    .setFooter({ text: `Turn ${turnTotal} · Rack ${rackNum + 1} · ${timerMs / 1000}s to choose` });
 
-                const buttonRows = buildReactionButtons(gameId, effect, { hasDecoy, decoyExtra });
-                await msg.edit({ embeds: [effectEmbed], components: buttonRows }).catch(() => {});
+                const buttons = buildSyringeButtons(gameId, rack, blind);
+                await msg.edit({ embeds: [turnEmbed], components: buttons }).catch(() => {});
 
-                // ——— Wait for reactions ———
-                const responses = await waitForReactions(msg, gameId, alive, timerMs, { switchAfterMs });
+                // ——— Wait for pick ———
+                const result = await waitForPick(msg, gameId, currentId, timerMs);
 
-                // ——— Process results ———
-                const survivors = [];
-                const deaths = [];
+                if (!result.picked) {
+                    // ——— TIMEOUT — auto-death ———
+                    alive.splice(alive.indexOf(currentId), 1);
+                    eliminated.push(currentId);
 
-                for (const [playerId, result] of responses) {
-                    if (result === 'correct') {
-                        survivors.push(playerId);
-                    } else if (shielded.has(playerId) && result !== 'correct') {
-                        // Shield absorbs one failure
-                        survivors.push(playerId);
-                        shielded.delete(playerId);
-                    } else {
-                        deaths.push({ id: playerId, reason: result });
-                    }
-                }
+                    const deathText = pick(TIMEOUT_DEATHS).replace(/\{name\}/g, `**${currentName}**`);
 
-                // Clear shields after use
-                shielded.clear();
-
-                // If everyone would die, save a random one
-                if (survivors.length === 0 && deaths.length > 0) {
-                    const saved = deaths.splice(randInt(0, deaths.length - 1), 1)[0];
-                    survivors.push(saved.id);
-                }
-
-                // Double elim: keep max deaths
-                // Normal: only kill 1 (or 2 if double elim)
-                if (!isDoubleElim && deaths.length > 1) {
-                    // Multiple people failed — pick one to actually die
-                    shuffle(deaths);
-                    const killed = deaths.shift();
-                    // Rest survive (they were wrong, but only one dies per round normally)
-                    for (const d of deaths) {
-                        survivors.push(d.id);
-                    }
-                    deaths.length = 0;
-                    deaths.push(killed);
-                } else if (isDoubleElim && deaths.length > 2) {
-                    shuffle(deaths);
-                    const kept = deaths.splice(0, 2);
-                    for (const d of deaths) {
-                        survivors.push(d.id);
-                    }
-                    deaths.length = 0;
-                    deaths.push(...kept);
-                }
-
-                // If nobody died somehow, skip elimination
-                if (deaths.length === 0) {
-                    const safeEmbed = new EmbedBuilder()
+                    const timeoutEmbed = new EmbedBuilder()
                         .setDescription(
-                            `### ✅ Everyone survived Round ${roundNum}\n\n` +
-                            `The compound stabilized. Nobody died.\n` +
-                            `*Homelander looks bored.*\n\n` +
-                            `**${alive.length}** remain`
+                            `${deathText}\n\n` +
+                            `**${alive.length}** test subject${alive.length !== 1 ? 's' : ''} remain`
                         )
                         .setColor(0x2b2d31);
-                    await msg.edit({ embeds: [safeEmbed], components: [] }).catch(() => {});
-                    await new Promise(r => setTimeout(r, 2000));
+                    await msg.edit({ embeds: [timeoutEmbed], components: [] }).catch(() => {});
+                    await new Promise(r => setTimeout(r, 3000));
 
-                    // Add shields if STARLIGHT SURGE
-                    if (addShield) {
-                        for (const id of alive) shielded.add(id);
-                    }
+                    // Don't reload rack on timeout — just continue
+                    if (alive.length <= 1) break;
+
+                    // Fix turn index
+                    if (turnIndex >= alive.length) turnIndex = 0;
                     continue;
                 }
 
-                // ——— ELIMINATION ———
-                // Build the death announcement
-                for (const death of deaths) {
-                    alive.splice(alive.indexOf(death.id), 1);
-                    eliminated.push(death.id);
-                }
+                // ——— PLAYER PICKED A SYRINGE ———
+                const chosen = rack[result.index];
 
-                // Survivor callouts
-                const surviveLines = survivors
-                    .slice(0, 4)
-                    .map(id => pick(SURVIVE_FLAVOR).replace('{name}', participants.get(deaths[0]?.id === id ? deaths[0].id : id).split(' ')[0]).replace('{name}', participants.get(id)))
-                    .join('\n');
+                if (!chosen.lethal) {
+                    // ═══ SURVIVED ═══
+                    // Remove chosen syringe from rack
+                    rack.splice(result.index, 1);
 
-                // Death announcements
-                let deathText = '';
-                for (const death of deaths) {
-                    const name = participants.get(death.id);
-                    if (death.reason === 'timeout') {
-                        deathText += pick(TIMEOUT_DEATHS).replace(/\{name\}/g, name) + '\n\n';
-                    } else if (death.reason === 'decoy') {
-                        deathText += `### 💀 ${name} clicked the decoy\nBlack Noir sends his regards.\n\n`;
-                    } else if (death.reason === 'switched') {
-                        deathText += `### 💀 ${name} was right... then the answer changed\nTemp V is a hell of a drug. ${name} wasn\'t fast enough.\n\n`;
+                    // Pick a unique survival power
+                    let power;
+                    const availablePowers = SURVIVAL_POWERS.filter(p => !usedPowers.has(p));
+                    if (availablePowers.length === 0) {
+                        usedPowers.clear();
+                        power = pick(SURVIVAL_POWERS);
                     } else {
-                        // wrong choice — use the side effect's death lines
-                        deathText += pick(effect.deathLines).replace(/\{name\}/g, name) + '\n\n';
+                        power = pick(availablePowers);
                     }
+                    usedPowers.add(power);
+
+                    const safeLeft = rack.filter(s => !s.lethal).length;
+                    const lethalLeft = rack.filter(s => s.lethal).length;
+
+                    const surviveEmbed = new EmbedBuilder()
+                        .setDescription(
+                            `### ✅ ${currentName} injects... **Compound V!**\n\n` +
+                            `Side effect: **${currentName}** ${power}\n\n` +
+                            `**The Rack:** ${'💉'.repeat(safeLeft)}${'💀'.repeat(lethalLeft)}` +
+                            `  *(${rack.length} left — ${lethalLeft} lethal)*\n\n` +
+                            `**${alive.length}** remain`
+                        )
+                        .setColor(0x2d7d46);
+                    await msg.edit({ embeds: [surviveEmbed], components: [] }).catch(() => {});
+                    await new Promise(r => setTimeout(r, 2500));
+
+                    // Advance turn
+                    turnIndex = (turnIndex + 1) % alive.length;
+
+                    // If rack is empty of safe syringes (only lethal left), reload next tier
+                    if (rack.filter(s => !s.lethal).length === 0 && rack.length > 0) {
+                        // Everyone dodged the lethal ones somehow — reload
+                        rackNum++;
+                        const newTier = RACK_TIERS[Math.min(rackNum, RACK_TIERS.length - 1)];
+                        rack = buildRack(newTier.total, newTier.lethal);
+                        currentLethal = newTier.lethal;
+
+                        const reloadEmbed = new EmbedBuilder()
+                            .setDescription(
+                                `### 💉 ${pick(RELOAD_FLAVOR)}\n\n` +
+                                `${'💉'.repeat(newTier.total - newTier.lethal)}${'💀'.repeat(newTier.lethal)}` +
+                                `  *(${newTier.total} syringes — ${newTier.lethal} lethal)*`
+                            )
+                            .setColor(0x1a1a2e);
+                        await msg.edit({ embeds: [reloadEmbed], components: [] }).catch(() => {});
+                        await new Promise(r => setTimeout(r, 2000));
+                    }
+
+                } else {
+                    // ═══ COMPOUND X — DEATH ═══
+                    alive.splice(alive.indexOf(currentId), 1);
+                    eliminated.push(currentId);
+
+                    const deathText = pick(DEATH_SCENES).replace(/\{name\}/g, `**${currentName}**`);
+
+                    const deathEmbed = new EmbedBuilder()
+                        .setDescription(
+                            `### ☠️ ${currentName} injects... **COMPOUND X.**\n\n` +
+                            `${deathText}\n\n` +
+                            `**${alive.length}** test subject${alive.length !== 1 ? 's' : ''} remain`
+                        )
+                        .setColor(0x8b0000);
+                    await msg.edit({ embeds: [deathEmbed], components: [] }).catch(() => {});
+                    await new Promise(r => setTimeout(r, 3500));
+
+                    if (alive.length <= 1) break;
+
+                    // Fix turn index
+                    if (turnIndex >= alive.length) turnIndex = 0;
+
+                    // ——— Reload rack with next difficulty tier ———
+                    rackNum++;
+                    const newTier = RACK_TIERS[Math.min(rackNum, RACK_TIERS.length - 1)];
+                    rack = buildRack(newTier.total, newTier.lethal);
+                    currentLethal = newTier.lethal;
+
+                    const reloadEmbed = new EmbedBuilder()
+                        .setDescription(
+                            `### 💉 ${pick(RELOAD_FLAVOR)}\n` +
+                            `${pick(INJECT_FLAVOR)}\n\n` +
+                            `${'💉'.repeat(newTier.total - newTier.lethal)}${'💀'.repeat(newTier.lethal)}` +
+                            `  *(${newTier.total} syringes — ${newTier.lethal} lethal)*`
+                        )
+                        .setColor(0x1a1a2e);
+                    await msg.edit({ embeds: [reloadEmbed], components: [] }).catch(() => {});
+                    await new Promise(r => setTimeout(r, 2500));
                 }
-
-                const deathEmbed = new EmbedBuilder()
-                    .setDescription(
-                        deathText +
-                        `**${alive.length}** test subject${alive.length !== 1 ? 's' : ''} remain`
-                    )
-                    .setColor(0xff0000);
-
-                await msg.edit({ embeds: [deathEmbed], components: [] }).catch(() => {});
-                await new Promise(r => setTimeout(r, 3000));
-
-                // Add shields if STARLIGHT SURGE
-                if (addShield) {
-                    for (const id of alive) shielded.add(id);
-                }
-
-                if (alive.length <= 1) break;
-
-                // Brief pause between rounds
-                const betweenEmbed = new EmbedBuilder()
-                    .setDescription(
-                        `### 🧪 Preparing next injection...\n\n` +
-                        `**${alive.length}** subjects remaining\n` +
-                        alive.map(id => `╰ ${participants.get(id)}`).join('\n')
-                    )
-                    .setColor(0x2b2d31);
-                await msg.edit({ embeds: [betweenEmbed], components: [] }).catch(() => {});
-                await new Promise(r => setTimeout(r, 2000));
             }
 
             // ══════════════════════════════════════════
@@ -832,10 +709,10 @@ module.exports = {
                 const noWinnerEmbed = new EmbedBuilder()
                     .setDescription(
                         `### 🧬 Trial Complete — No Survivors\n\n` +
-                        `Every test subject died.\n` +
-                        `The card goes unclaimed.\n` +
-                        `Homelander shrugs. "Disappointing."\n\n` +
-                        `*Vought stock drops 2%.*`
+                        `Every test subject is gone.\n` +
+                        `The card goes unclaimed.\n\n` +
+                        `*Homelander shrugs. "Disappointing."*\n` +
+                        `*Vought stock is unaffected.*`
                     )
                     .setColor(0x2b2d31);
                 await msg.edit({ embeds: [noWinnerEmbed], components: [] }).catch(() => {});
@@ -850,8 +727,8 @@ module.exports = {
             const suspenseEmbed = new EmbedBuilder()
                 .setDescription(
                     `### 🧬 The compound stabilizes...\n\n` +
-                    `One subject remains standing in the wreckage.\n` +
-                    `Blood on the walls. Silence in the lab.`
+                    `One subject remains.\n` +
+                    `The lab is quiet. The interns are hiding.`
                 )
                 .setColor(0x2b2d31);
             await msg.edit({ embeds: [suspenseEmbed], components: [] }).catch(() => {});
@@ -867,16 +744,16 @@ module.exports = {
                 .setDescription(
                     `### 🏆 ${winnerName} survived the Compound V Trials\n\n` +
                     `Claimed ${emoji} **${card.name}** · ${cap(card.rarity)}\n\n` +
-                    `"*I can do whatever I want.*"\n\n` +
-                    `**Body Count**\n` +
+                    `*"I can do whatever I want."*\n\n` +
+                    `**Final Report**\n` +
                     `1. **${winnerName}** 🧬 — Sole Survivor\n` +
                     elimOrder.reverse().join('\n') +
-                    `\n\n_${roundNum} rounds · ${eliminated.length} deaths · ${participants.size} subjects_`
+                    `\n\n_${turnTotal} turns · ${eliminated.length} casualties · ${participants.size} subjects_`
                 )
                 .setImage(card.imageUrl)
-                .setColor(0x8b0000)
+                .setColor(0x1a1a2e)
                 .setTimestamp()
-                .setFooter({ text: 'Vought International™ — "Saving The World, One Dose At A Time"' });
+                .setFooter({ text: 'Vought International™ — "You\'re Earth\'s Mightiest Heroes."' });
 
             await msg.edit({ embeds: [victoryEmbed], components: [] }).catch(() => {});
         });
