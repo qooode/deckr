@@ -8,8 +8,8 @@ const { config } = require('../../utils/config');
 // ——— Config ———
 const JOIN_DURATION_MS = 60 * 1000;
 const MIN_PLAYERS = 3;
-const BASE_REACT_MS = 8000;         // base reaction window
-const MIN_REACT_MS = 3000;          // minimum reaction window
+const BASE_REACT_MS = 15000;        // base reaction window (15s — gotta read the prompt)
+const MIN_REACT_MS = 6000;          // minimum reaction window (6s)
 const CHAOS_CHANCE = 0.22;          // ~22% chance of chaos per round
 
 function cap(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
@@ -618,7 +618,7 @@ module.exports = {
                 const effect = SIDE_EFFECTS[effectIndex];
 
                 // Timer: shrinks per round
-                const shrink = Math.floor(roundNum * 400);
+                const shrink = Math.floor(roundNum * 250);
                 let timerMs = Math.max(MIN_REACT_MS, BASE_REACT_MS - shrink);
 
                 // Chaos event check
