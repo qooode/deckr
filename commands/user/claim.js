@@ -30,6 +30,9 @@ module.exports = {
             });
         }
 
+        // Record cooldown immediately so the user can't /claim again before picking
+        dm.recordClaim(interaction.user.id);
+
         const threeCards = dm.getRandomCards(3);
         if (threeCards.length < 3) {
             return interaction.reply({ content: 'Need at least 3 cards in the pool.', ephemeral: true });
@@ -81,7 +84,6 @@ module.exports = {
             const pickedCard = threeCards[pickedIndex];
 
             dm.addCardToUser(interaction.user.id, interaction.user.username, pickedCard.id);
-            dm.recordClaim(interaction.user.id);
 
             const pickedColor = config.rarityColors[pickedCard.rarity] || '#9e9e9e';
             const positions = ['Left', 'Middle', 'Right'];
