@@ -19,21 +19,29 @@ module.exports = {
 
         if (focused.name === 'your_card') {
             const userCards = dm.getUserInventory(interaction.user.id);
-            const ownedCardIds = userCards.filter(c => c.quantity > 0).map(c => c.cardId);
-            const ownedCards = allCards.filter(c => ownedCardIds.includes(c.id));
+            const invMap = {};
+            for (const c of userCards) { if (c.quantity > 0) invMap[c.cardId] = c.quantity; }
+            const ownedCards = allCards.filter(c => invMap[c.id]);
             const filtered = ownedCards
                 .filter(c => c.name.toLowerCase().includes(focused.value.toLowerCase()))
                 .slice(0, 25);
             await interaction.respond(filtered.map(c => ({
-                name: `${c.name} (${c.rarity})`,
+                name: `${c.name} (${c.rarity}) ×${invMap[c.id]}`,
                 value: c.id,
             })));
         } else {
-            const filtered = allCards
+            const targetUserId = interaction.options.get('user')?.value;
+            const targetInv = targetUserId ? dm.getUserInventory(targetUserId) : null;
+            const invMap = {};
+            if (targetInv) {
+                for (const c of targetInv) { if (c.quantity > 0) invMap[c.cardId] = c.quantity; }
+            }
+            const pool = targetInv ? allCards.filter(c => invMap[c.id]) : allCards;
+            const filtered = pool
                 .filter(c => c.name.toLowerCase().includes(focused.value.toLowerCase()))
                 .slice(0, 25);
             await interaction.respond(filtered.map(c => ({
-                name: `${c.name} (${c.rarity})`,
+                name: targetInv ? `${c.name} (${c.rarity}) ×${invMap[c.id]}` : `${c.name} (${c.rarity})`,
                 value: c.id,
             })));
         }
