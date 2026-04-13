@@ -4,7 +4,7 @@ const { config } = require('../../utils/config');
 
 const DEFAULT_DURATION_SEC = 30;
 
-const FISH_OUTCOMES = [
+const NORMAL_OUTCOMES = [
     { type: 'card', rarity: 'common', weight: 40 },
     { type: 'card', rarity: 'uncommon', weight: 25 },
     { type: 'card', rarity: 'rare', weight: 12 },
@@ -14,14 +14,79 @@ const FISH_OUTCOMES = [
     { type: 'snag', weight: 5 },
 ];
 
-function rollOutcome() {
-    const total = FISH_OUTCOMES.reduce((s, o) => s + o.weight, 0);
+const NORMAL_INTROS = [
+    'The water is calm. Good day for a cast.',
+    'The tide is turning — perfect window.',
+    'Overcast sky. Fish sit higher when the sun hides.',
+    'Fresh ripples in the shallows. Something\'s feeding.',
+    'Low wind, glassy surface. Read the water carefully.',
+    'Cool morning. The shallows are just starting to warm.',
+    'Mayflies on the surface. They\'re up top today.',
+];
+
+const EVENT_MODES = {
+    normal: {
+        weight: 78,
+        title: '🎣 A fishing spot appeared',
+        color: 0x2196f3,
+        outcomes: NORMAL_OUTCOMES,
+    },
+    storm: {
+        weight: 9,
+        title: '🌩 STORM ROLLING IN',
+        intro: 'Rain lashes the surface. The big ones rise in weather like this — but so does the risk.',
+        color: 0x512da8,
+        outcomes: [
+            { type: 'card', rarity: 'common', weight: 20 },
+            { type: 'card', rarity: 'uncommon', weight: 22 },
+            { type: 'card', rarity: 'rare', weight: 20 },
+            { type: 'card', rarity: 'epic', weight: 10 },
+            { type: 'card', rarity: 'legendary', weight: 3 },
+            { type: 'nothing', weight: 10 },
+            { type: 'snag', weight: 15 },
+        ],
+    },
+    frenzy: {
+        weight: 8,
+        title: '🐟 THEY\'RE BITING — feeding frenzy',
+        intro: 'The school is running hot. Every line will find something. No snags today.',
+        color: 0x00c853,
+        outcomes: [
+            { type: 'card', rarity: 'common', weight: 38 },
+            { type: 'card', rarity: 'uncommon', weight: 30 },
+            { type: 'card', rarity: 'rare', weight: 20 },
+            { type: 'card', rarity: 'epic', weight: 10 },
+            { type: 'card', rarity: 'legendary', weight: 2 },
+        ],
+    },
+    kraken: {
+        weight: 5,
+        title: '🐙 THE KRAKEN RISES',
+        intro: 'Something massive moves beneath the boats. Only one will land it. The rest get pulled under.',
+        color: 0x1a237e,
+        special: 'kraken',
+    },
+};
+
+function rollEvent() {
+    const entries = Object.entries(EVENT_MODES);
+    const total = entries.reduce((s, [, m]) => s + m.weight, 0);
     let roll = Math.random() * total;
-    for (const o of FISH_OUTCOMES) {
+    for (const [key, mode] of entries) {
+        roll -= mode.weight;
+        if (roll <= 0) return { key, ...mode };
+    }
+    return { key: 'normal', ...EVENT_MODES.normal };
+}
+
+function rollOutcome(outcomes) {
+    const total = outcomes.reduce((s, o) => s + o.weight, 0);
+    let roll = Math.random() * total;
+    for (const o of outcomes) {
         roll -= o.weight;
         if (roll <= 0) return o;
     }
-    return FISH_OUTCOMES[FISH_OUTCOMES.length - 1];
+    return outcomes[outcomes.length - 1];
 }
 
 function pickCardOfRarity(rarity) {
@@ -34,6 +99,12 @@ function pickRandomOwnedCard(userId) {
     const owned = dm.getUserInventory(userId).filter(e => e.quantity > 0);
     if (owned.length === 0) return null;
     return owned[Math.floor(Math.random() * owned.length)];
+}
+
+const RARITY_TIER = { common: 1, uncommon: 2, rare: 3, epic: 4, legendary: 5 };
+
+function sleep(ms) {
+    return new Promise(res => setTimeout(res, ms));
 }
 
 module.exports = {
@@ -65,16 +136,27 @@ module.exports = {
         const endsAt = Math.floor((Date.now() + durationMs) / 1000);
 
         const casters = new Map(); // userId -> username
+        const event = rollEvent();
+        const intro = event.intro ?? NORMAL_INTROS[Math.floor(Math.random() * NORMAL_INTROS.length)];
+
+        const footerText = event.key === 'kraken'
+            ? 'Only one lands the kraken. The rest lose a card.'
+            : event.key === 'frenzy'
+                ? 'No snags. Everyone catches something.'
+                : event.key === 'storm'
+                    ? 'Higher rewards. Higher risk.'
+                    : 'One cast per player. Snags lose a random card.';
 
         const buildEmbed = () => new EmbedBuilder()
-            .setTitle('🎣 A fishing spot appeared!')
+            .setTitle(event.title)
             .setDescription(
-                `Click **Cast Line** to join the catch.\n` +
+                `*${intro}*\n\n` +
+                `Click **Cast Line** to throw your hook in.\n` +
                 `The spot dries up <t:${endsAt}:R>.\n\n` +
                 `_Casters: ${casters.size}_`
             )
-            .setColor(0x2196f3)
-            .setFooter({ text: 'One cast per player. Snags lose a random card.' });
+            .setColor(event.color)
+            .setFooter({ text: footerText });
 
         const castRow = new ActionRowBuilder().addComponents(
             new ButtonBuilder()
@@ -111,54 +193,138 @@ module.exports = {
 
             if (casters.size === 0) {
                 const emptyEmbed = new EmbedBuilder()
-                    .setTitle('🎣 Fishing spot dried up')
-                    .setDescription('No one cast a line.')
+                    .setTitle(`${event.title} — dried up`)
+                    .setDescription('Nobody cast a line. The water goes still again.')
                     .setColor(0x2b2d31);
                 await msg.edit({ embeds: [emptyEmbed], components: [disabledRow] }).catch(() => { });
                 return;
             }
 
-            const lines = [];
+            // Compute all results upfront. { tier, line } — tier sorts reveal order.
+            const results = [];
 
-            for (const [userId, username] of casters) {
-                const outcome = rollOutcome();
-                let line;
+            if (event.special === 'kraken') {
+                const casterArray = [...casters.entries()];
+                const winnerIdx = Math.floor(Math.random() * casterArray.length);
 
-                if (outcome.type === 'card') {
-                    const card = pickCardOfRarity(outcome.rarity);
-                    if (!card) {
-                        line = `🎣 **${username}** — caught nothing`;
-                    } else {
+                casterArray.forEach(([userId, username], idx) => {
+                    if (idx === winnerIdx) {
+                        const card = dm.getRandomCardMinRarity('rare') || dm.getRandomCard();
+                        if (!card) {
+                            results.push({ tier: 6, line: `🐙 **${username}** grappled with the kraken — but the pool was empty` });
+                            return;
+                        }
                         dm.addCardToUser(userId, username, card.id);
                         const emoji = config.rarityEmojis[card.rarity] || '⚪';
                         const rarityName = card.rarity.charAt(0).toUpperCase() + card.rarity.slice(1);
-                        line = `🎣 **${username}** — caught ${emoji} **${card.name}** · ${rarityName}`;
-                    }
-                } else if (outcome.type === 'nothing') {
-                    line = `🎣 **${username}** — caught nothing`;
-                } else {
-                    const owned = pickRandomOwnedCard(userId);
-                    if (!owned) {
-                        line = `🎣 **${username}** — caught nothing _(nothing to snag)_`;
+                        results.push({
+                            tier: 6,
+                            line: `🐙 **${username}** landed the kraken — ${emoji} **${card.name}** · ${rarityName}`,
+                        });
                     } else {
+                        const owned = pickRandomOwnedCard(userId);
+                        if (!owned) {
+                            results.push({ tier: 0, line: `🪝 **${username}** was pulled under — nothing left to take` });
+                            return;
+                        }
                         const card = dm.findCardById(owned.cardId);
                         dm.removeCardFromUser(userId, owned.cardId);
                         const emoji = card ? (config.rarityEmojis[card.rarity] || '⚪') : '⚪';
                         const name = card ? card.name : owned.cardId;
-                        line = `🪝 **${username}** — got snagged! Lost ${emoji} **${name}**`;
+                        results.push({
+                            tier: 0,
+                            line: `🪝 **${username}** went under with ${emoji} **${name}**`,
+                        });
+                    }
+                });
+            } else {
+                for (const [userId, username] of casters) {
+                    const outcome = rollOutcome(event.outcomes);
+
+                    if (outcome.type === 'card') {
+                        const card = pickCardOfRarity(outcome.rarity);
+                        if (!card) {
+                            results.push({ tier: 0, line: `🎣 **${username}** — line came up empty` });
+                            continue;
+                        }
+                        dm.addCardToUser(userId, username, card.id);
+                        const emoji = config.rarityEmojis[card.rarity] || '⚪';
+                        const rarityName = card.rarity.charAt(0).toUpperCase() + card.rarity.slice(1);
+                        results.push({
+                            tier: RARITY_TIER[card.rarity] ?? 1,
+                            line: `🎣 **${username}** — ${emoji} **${card.name}** · ${rarityName}`,
+                        });
+                    } else if (outcome.type === 'nothing') {
+                        results.push({ tier: 0, line: `🎣 **${username}** — line came up empty` });
+                    } else {
+                        const owned = pickRandomOwnedCard(userId);
+                        if (!owned) {
+                            results.push({ tier: 0, line: `🪝 **${username}** — hook snagged, but had nothing to lose` });
+                            continue;
+                        }
+                        const card = dm.findCardById(owned.cardId);
+                        dm.removeCardFromUser(userId, owned.cardId);
+                        const emoji = card ? (config.rarityEmojis[card.rarity] || '⚪') : '⚪';
+                        const name = card ? card.name : owned.cardId;
+                        results.push({
+                            tier: 0,
+                            line: `🪝 **${username}** — snagged, lost ${emoji} **${name}**`,
+                        });
                     }
                 }
-
-                lines.push(line);
             }
 
-            const resultEmbed = new EmbedBuilder()
-                .setTitle('🎣 The catches are in!')
-                .setDescription(lines.join('\n'))
-                .setColor(0x2196f3)
+            // Sort ascending: losses/nothings first, legendaries/kraken last.
+            results.sort((a, b) => a.tier - b.tier);
+
+            // --- Staged reveal ---
+            const revealTitle = '🎣 Reeling in...';
+
+            const makeStageEmbed = (desc, revealedLines) => new EmbedBuilder()
+                .setTitle(revealTitle)
+                .setDescription(
+                    `*${intro}*\n\n` +
+                    (revealedLines.length ? revealedLines.join('\n') + '\n\n' : '') +
+                    `_${desc}_`
+                )
+                .setColor(event.color);
+
+            await msg.edit({ embeds: [makeStageEmbed('The lines go taut...', [])], components: [disabledRow] }).catch(() => { });
+            await sleep(1100);
+
+            await msg.edit({ embeds: [makeStageEmbed('Something\'s taking the bait...', [])], components: [disabledRow] }).catch(() => { });
+            await sleep(1100);
+
+            // Reveal in tiers: losses → low → mid → high/kraken.
+            const tierGroups = [
+                { max: 0, flavor: 'Lines coming in empty...' },
+                { max: 2, flavor: 'A few keepers on the stringer...' },
+                { max: 4, flavor: 'The rod bends hard...' },
+                { max: 6, flavor: 'Something the lake doesn\'t usually give up...' },
+            ];
+
+            const revealed = [];
+            let cursor = 0;
+            for (const group of tierGroups) {
+                const take = [];
+                while (cursor < results.length && results[cursor].tier <= group.max) {
+                    take.push(results[cursor].line);
+                    cursor++;
+                }
+                if (take.length === 0) continue;
+                revealed.push(...take);
+                await msg.edit({ embeds: [makeStageEmbed(group.flavor, revealed)], components: [disabledRow] }).catch(() => { });
+                await sleep(1000);
+            }
+
+            // Final embed
+            const finalEmbed = new EmbedBuilder()
+                .setTitle(`${event.title} — catches are in`)
+                .setDescription(`*${intro}*\n\n${revealed.join('\n')}`)
+                .setColor(event.color)
                 .setTimestamp();
 
-            await msg.edit({ embeds: [resultEmbed], components: [disabledRow] }).catch(() => { });
+            await msg.edit({ embeds: [finalEmbed], components: [disabledRow] }).catch(() => { });
         });
     },
 };
