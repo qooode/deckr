@@ -31,6 +31,7 @@ const config = {
         : fileConfig.adminIds || [],
     claimCooldownMinutes: parseInt(process.env.CLAIM_COOLDOWN_MINUTES || fileConfig.claimCooldownMinutes || 1440, 10),
     claimImageUrl: process.env.CLAIM_IMAGE_URL || fileConfig.claimImageUrl || '',
+    createCardPrice: parseInt(process.env.CREATE_CARD_PRICE || fileConfig.createCardPrice || 100000, 10),
     rarityWeights: fileConfig.rarityWeights || {
         common: 50,
         uncommon: 30,
@@ -80,4 +81,16 @@ function setCooldown(minutes) {
     }
 }
 
-module.exports = { config, validate, setCooldown };
+// Update create-card price at runtime (called by /setcreateprice)
+function setCreateCardPrice(price) {
+    config.createCardPrice = price;
+    try {
+        const current = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+        current.createCardPrice = price;
+        fs.writeFileSync(configPath, JSON.stringify(current, null, 2), 'utf-8');
+    } catch {
+        // Running without config.json (Docker), just keep in memory
+    }
+}
+
+module.exports = { config, validate, setCooldown, setCreateCardPrice };
